@@ -1,0 +1,7 @@
+op|concurrency|n|wall_ms|ops_per_sec|infra_retries|failed_invariants
+write|1|1000|375|2666|0|0
+write|8|1000|700|1428|0|0
+write|64|1000|845|1182|0|0
+read|1|1200|2231|538|0|0
+read|8|1200|3837|313|0|0
+read|64|1200|4064|295|0|0
