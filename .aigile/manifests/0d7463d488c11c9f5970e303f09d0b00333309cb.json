@@ -10,7 +10,7 @@
   },
   "burst_sha": "0d7463d488c11c9f5970e303f09d0b00333309cb",
   "project_slug": "ledger-wallet",
-  "burst_label": null,
+  "burst_label": "architecture-v1",
   "orchestrator": {
     "name": "Stephen Kamau",
     "email": "stephen.kamau@prospect33.com"
@@ -67,7 +67,10 @@
   "builder_terminal_invocations": [],
   "governance_invocations": [],
   "ship_fallback_authorizations": [],
-  "archive_locator": null,
+  "archive_locator": {
+    "path": "AIGILE_PLAN/closed/2026-11-11-architecture-v1-0d7463d",
+    "recorded_at": "2026-11-11T18:18:31Z"
+  },
   "archive_receipts": [],
   "refreezes": [],
   "reviews": {},
