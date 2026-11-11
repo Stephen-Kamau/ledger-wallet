@@ -1,0 +1,5 @@
+/operators/
+*.db
+*.db-wal
+*.db-shm
+/bin/
