@@ -5,7 +5,7 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 ## Current state
 
 **Phase:** Promoting
-**Active burst:** None
+**Active burst:** architecture-v1
 **Burst base:** 0d7463d488c11c9f5970e303f09d0b00333309cb
 **Plan reference:** None
 **Next action:** Idle - run /ag-plan to start a burst
