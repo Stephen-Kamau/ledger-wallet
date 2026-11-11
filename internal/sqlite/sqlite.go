@@ -89,6 +89,11 @@ func New(db *sql.DB) *Store {
 // lock is acquired at transaction start - the heart of the double-spend defence (§5).
 const dsnPragmas = "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(ON)&_txlock=immediate"
 
+// maxOpenConns caps the database/sql pool (see Open). 16 is where Kofi's read
+// fan-out throughput recovered; it comfortably clears the single writer plus
+// concurrent WAL readers without letting the pool churn fresh connections.
+const maxOpenConns = 16
+
 // Open opens (or creates) the SQLite database at path with the §5 pragmas, applies
 // the embedded schema, and returns a ready Store. The connection pool is capped so
 // WAL's single-writer model is respected and the busy_timeout governs contention.
@@ -97,6 +102,15 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("sqlite open: %w", err)
 	}
+	// Cap the pool. database/sql opens a fresh connection per concurrent caller by
+	// default, and every fresh SQLite connection re-runs the DSN PRAGMAs; under read
+	// fan-out that churn collapses read throughput (measured ~193 rps at concurrency
+	// 64, recovered when capped). Keep idle == max so warm connections are reused
+	// rather than reopened. WAL permits one writer regardless; the cap just stops the
+	// readers from thrashing.
+	db.SetMaxOpenConns(maxOpenConns)
+	db.SetMaxIdleConns(maxOpenConns)
+	db.SetConnMaxLifetime(0) // never expire a warm connection
 	if err := EnsureSchema(ctx, db); err != nil {
 		_ = db.Close()
 		return nil, err

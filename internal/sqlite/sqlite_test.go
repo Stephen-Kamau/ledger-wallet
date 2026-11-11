@@ -208,6 +208,16 @@ func TestSQLite_UnknownAccount(t *testing.T) {
 	}
 }
 
+// Open caps the connection pool so read fan-out does not churn fresh connections
+// (each of which re-runs the DSN PRAGMAs and collapses read throughput).
+func TestOpen_PoolCapped(t *testing.T) {
+	_, store := newLedger(t)
+	stats := store.DB().Stats()
+	if stats.MaxOpenConnections <= 0 {
+		t.Fatalf("pool is uncapped (MaxOpenConnections=%d); Open must SetMaxOpenConns", stats.MaxOpenConnections)
+	}
+}
+
 func mint(t *testing.T, l core.Ledger, sys, to core.AccountID, amt core.Amount) {
 	t.Helper()
 	if _, err := l.Transfer(context.Background(), core.TransferCmd{

@@ -11,13 +11,16 @@ import (
 	"github.com/Stephen-Kamau/ledger-wallet/core"
 )
 
-// main wires the ledger and serves the HTTP surface. The api stream (Dakari) mounts
-// its router onto the core.Ledger that New returns.
+// main is the server entrypoint and owns the server lifecycle: flags, DB open/close,
+// listen address, and ListenAndServe. The transport layer plugs in without owning any
+// of that - api (Dakari) exposes api.NewHandler(ledger) (an http.Handler via Router());
+// this file constructs the ledger through New and mounts that handler. Dependency
+// direction stays core <- api <- cmd; neither core nor api depends on cmd.
 //
-// OVERLAP NOTE (D-A1): cmd/ledgerd is Amara's scope, not Dakari's. The api stream
-// needs a running server to host its router, so this HTTP wiring was added by Dakari
-// (api/). This is a deliberate cross-stream grab; the coordinator's overlap gate is
-// expected to flag it against Amara's claim on cmd/ledgerd.
+// OWNERSHIP (D-A1): cmd/ledgerd is owned by Amara. An earlier api-stream grab put the
+// HTTP wiring here directly; per the owner's ruling the entrypoint stays Amara's and
+// folds in api.NewHandler, rather than the api stream editing this file. See
+// AIGILE_DECISIONS.md D-A1 / the overlap adjudication in docs/operators-activity-log.md.
 func main() {
 	dbPath := flag.String("db", "ledger.db", "path to the SQLite database file")
 	addr := flag.String("addr", ":8080", "HTTP listen address")
