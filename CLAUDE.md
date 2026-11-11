@@ -694,50 +694,39 @@ Rationale: [search scope](docs/standing/aigile-rules-rationale.md#search-scope).
 
 ## Project
 
-**Name:** [project name]
-**Repo:** [github.com/owner/repo-name]
-**Purpose:** [one sentence]
-**Owner:** [name, organisation]
+**Name:** ledger-wallet
+**Repo:** github.com/Stephen-Kamau/ledger-wallet (private)
+**Purpose:** Double-entry ledger/wallet (Go) - toy vehicle for exercising multi-user AI-gile.
+**Owner:** Stephen Kamau, Prospect 33
 
 ## Stack
 
-**Language:** [e.g. Python 3.12 / TypeScript 5.x]
-**Framework:** [e.g. FastAPI / React 18]
-**Database:** [e.g. PostgreSQL via Supabase]
-**Package manager:** [e.g. bun / pip]
-**Deploy:** Railway (dev branch -> dev, main branch -> prod)
-**Test runner:** [e.g. pytest / vitest]
-**Formatter:** [e.g. black / prettier]
+**Language:** Go 1.24 (backend); React + TypeScript (web)
+**Framework:** net/http stdlib router (api); React functional components (web)
+**Database:** SQLite (WAL) behind a storage-agnostic core port
+**Package manager:** go modules (backend); bun (web)
+**Deploy:** n/a (toy; no Railway)
+**Test runner:** go test (backend); vitest (web)
+**Formatter:** gofmt (backend); prettier (web)
 
 ## Key Commands
 
 ```bash
-# Install
-[command]
+# Backend build / test
+go build ./...
+go test ./...
 
-# Dev server
-[command]
-
-# Tests
-[command]
-
-# Format
-[command]
+# Web (once scaffolded)
+bun install
+bun run dev
+bun run test
 ```
 
-## Railway Environments
+## Operators
 
-- dev branch push -> Railway dev (automatic)
-- main branch merge -> Railway prod (automatic, requires human confirmation)
-
-## UI harness
-
-<!-- Required when the UI sits behind sign-in (docs/standing/ui-verification-contract.md
-section 3). Delete this section only when the repo has no UI or no sign-in. -->
-- Start / stop: [one command each]
-- Sign-in: [how the browser is signed in without a human, and how the level is chosen]
-- Data: [the snapshot source; read-only]
-- Bypass bound: [what refuses the bypass outside the harness]
+Multi-user AI-gile is ON. 5 signed operators build concurrently; see `docs/operators.md` and
+`AIGILE_DESIGN.md`. Build bursts run in `operators/<login>/` clones with signed claims so the
+overlap and review-independence gates fire on real activity.
 
 Declare your browser for screen captures in your own CLAUDE.md (`~/.claude/CLAUDE.md`
 or this file), one line; skills read it, default Playwright on Chromium:
