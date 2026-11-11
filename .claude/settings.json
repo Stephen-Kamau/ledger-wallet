@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": ["Read", "Glob", "Grep", "Write", "Edit", "Bash(*)"],
+    "deny": [
+      "Bash(rm -rf /)",
+      "Bash(rm -rf ~)",
+      "Bash(supabase db reset*--db-url*)",
+      "Bash(railway down)"
+    ],
+    "additionalDirectories": ["/tmp"]
+  }
+, "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "grep -q ag-status \"$HOME/.claude/settings.json\" 2>/dev/null || \"$HOME/.claude/aigile-canonical/scripts/ag-status\" --quiet 2>/dev/null || true", "timeout": 30000}]}]}}

@@ -1,0 +1,7 @@
+# Written by ag-init - docs/standing/mutation-runner-contract.md
+# One row per mutation runner: <name>|<path-prefixes>|<language>|<command>
+# `native` is canonical's own Python engine, run in-process by `ag-mutate --runners`.
+# Any other command is run as an argv with {base} replaced by the burst base and must
+# print the JSON `ag-mutate --json` prints: {"base", "modules", "total", "seconds"}.
+# A changed path under no row's prefixes is reported `not configured for <language>`.
+# go-svc|cmd/,pkg/|go|go-mutesting-wrapper --since {base}
