@@ -208,6 +208,68 @@ func TestSQLite_UnknownAccount(t *testing.T) {
 	}
 }
 
+// A first-write transfer's RETURNED postings carry the real per-account monotonic
+// seq the adapter assigned under the write lock (D-B1), not the zero the engine left.
+// This is the C-1 regression: the result body (-> POST /transfers 201, 10-api.md
+// §1.3) must match the DB. The in-memory fakes write seq back for free, so only a
+// real-DB assertion catches a dropped write-back.
+func TestInsertTransfer_ReturnsRealSeq(t *testing.T) {
+	l, store := newLedger(t)
+	ctx := context.Background()
+	sys := mustAcct(t, l, "system", "USD", true)
+	alice := mustAcct(t, l, "alice", "USD", false)
+	bob := mustAcct(t, l, "bob", "USD", false)
+
+	// Mint: alice gets her seq-1 (credit); sys gets its seq-1 (debit).
+	mintRes, err := l.Transfer(ctx, core.TransferCmd{
+		Authorizer: "system", From: sys.ID, To: alice.ID,
+		Amount: 100, Currency: "USD", IdempotencyKey: "m",
+	})
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+	for _, p := range mintRes.Transfer.Postings {
+		if p.Seq != 1 {
+			t.Fatalf("first posting on %s: returned seq %d, want 1 (write-back dropped)", p.Account, p.Seq)
+		}
+	}
+
+	// Second transfer: alice debits (her account's seq must advance to 2); bob credits
+	// (his first posting, seq 1).
+	res, err := l.Transfer(ctx, core.TransferCmd{
+		Authorizer: "alice", From: alice.ID, To: bob.ID,
+		Amount: 30, Currency: "USD", IdempotencyKey: "t",
+	})
+	if err != nil {
+		t.Fatalf("transfer: %v", err)
+	}
+	got := map[core.AccountID]int64{}
+	for _, p := range res.Transfer.Postings {
+		if p.Seq == 0 {
+			t.Fatalf("posting on %s returned seq 0 - adapter did not write seq back", p.Account)
+		}
+		got[p.Account] = p.Seq
+	}
+	if got[alice.ID] != 2 {
+		t.Fatalf("alice second posting: returned seq %d, want 2", got[alice.ID])
+	}
+	if got[bob.ID] != 1 {
+		t.Fatalf("bob first posting: returned seq %d, want 1", got[bob.ID])
+	}
+
+	// The returned seq must equal what the DB actually stored (no drift).
+	var dbSeq int64
+	for _, p := range res.Transfer.Postings {
+		if err := store.DB().QueryRowContext(ctx,
+			`SELECT seq FROM postings WHERE id = ?`, p.ID).Scan(&dbSeq); err != nil {
+			t.Fatalf("read seq: %v", err)
+		}
+		if dbSeq != p.Seq {
+			t.Fatalf("returned seq %d != stored seq %d for posting %s", p.Seq, dbSeq, p.ID)
+		}
+	}
+}
+
 // Open caps the connection pool so read fan-out does not churn fresh connections
 // (each of which re-runs the DSN PRAGMAs and collapses read throughput).
 func TestOpen_PoolCapped(t *testing.T) {

@@ -83,11 +83,18 @@ func (t *txn) InsertTransfer(tr core.Transfer) error {
 		return fmt.Errorf("insert transfer: %w", err)
 	}
 
-	for _, p := range tr.Postings {
+	// Index by reference so the assigned seq is written back into the caller's
+	// Transfer (D-B1): the adapter is the authority for seq, and the returned result
+	// -> the 201 body (10-api.md §1.3) must carry the real value, not the zero the
+	// engine left. Previously this ranged by value and dropped the write-back, so a
+	// first-write result reported seq:0 while the DB held the true monotonic seq.
+	for i := range tr.Postings {
+		p := &tr.Postings[i]
 		seq, err := t.nextSeq(p.Account)
 		if err != nil {
 			return err
 		}
+		p.Seq = seq // authoritative, assigned under the write lock
 		if _, err := t.tx.ExecContext(t.ctx,
 			`INSERT INTO postings (id, transfer_id, account_id, amount, currency, seq, created_at)
 			 VALUES (?, ?, ?, ?, ?, ?, ?)`,
