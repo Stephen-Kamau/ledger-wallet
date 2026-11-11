@@ -4,7 +4,7 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 ## Current state
 
-**Phase:** Producing
+**Phase:** Promoting
 **Active burst:** None
 **Burst base:** 0d7463d488c11c9f5970e303f09d0b00333309cb
 **Plan reference:** None

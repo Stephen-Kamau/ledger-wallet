@@ -29,6 +29,36 @@
         "source_commit": "d47f481d5adb67af6156ae475357d947866ee58f",
         "dirty": 0
       }
+    },
+    {
+      "name": "Probing",
+      "entered_at": "2026-11-11T18:17:58Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.14",
+        "source_commit": "d47f481d5adb67af6156ae475357d947866ee58f",
+        "dirty": 0
+      }
+    },
+    {
+      "name": "Piloting",
+      "entered_at": "2026-11-11T18:17:59Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.14",
+        "source_commit": "d47f481d5adb67af6156ae475357d947866ee58f",
+        "dirty": 0
+      }
+    },
+    {
+      "name": "Promoting",
+      "entered_at": "2026-11-11T18:17:59Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.14",
+        "source_commit": "d47f481d5adb67af6156ae475357d947866ee58f",
+        "dirty": 0
+      }
     }
   ],
   "streams": [],
