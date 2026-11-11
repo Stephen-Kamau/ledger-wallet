@@ -59,6 +59,16 @@
         "source_commit": "d47f481d5adb67af6156ae475357d947866ee58f",
         "dirty": 0
       }
+    },
+    {
+      "name": "Idle",
+      "entered_at": "2026-11-11T18:18:31Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.14",
+        "source_commit": "d47f481d5adb67af6156ae475357d947866ee58f",
+        "dirty": 0
+      }
     }
   ],
   "streams": [],

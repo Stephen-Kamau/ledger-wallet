@@ -4,9 +4,9 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 ## Current state
 
-**Phase:** Promoting
-**Active burst:** architecture-v1
-**Burst base:** 0d7463d488c11c9f5970e303f09d0b00333309cb
+**Phase:** Idle
+**Active burst:** None
+**Burst base:** None
 **Plan reference:** None
 **Next action:** Idle - run /ag-plan to start a burst
 **Last updated:** [YYYY-MM-DD]
@@ -40,54 +40,9 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 <!-- when an in-session rescue thread may already exist. See AIGILE_RULES  -->
 <!-- ### Codex invocation for the full rule.                               -->
 
-**Planning started:** 2026-11-11T16:00:27Z
 ## Active streams
 
-<!-- Per-stream executor block (seven fields). Populated by /ag-plan       -->
-<!-- Step 7 at approval and /ag-stream when adding parallel streams. The   -->
-<!-- stream's scope and file list lives in                                 -->
-<!-- AIGILE_PLAN/current/round_<N>/plan.md, not here.                      -->
-<!--                                                                       -->
-<!-- Single-stream bursts use stream name `main`. Multi-stream bursts use  -->
-<!-- the names from the plan.                                              -->
-<!--                                                                       -->
-<!-- Format: one block per stream, one line per field.                    -->
-<!--                                                                       -->
-<!--   **Stream <name> <field>:** <value>                                  -->
-<!--                                                                       -->
-<!-- The admitted <field> labels come from lib/ag-stream-fields.tsv, the   -->
-<!-- ONLY declared home for them, and are never restated here. Write the   -->
-<!-- labels marked `current`. A field outside that table is reported as    -->
-<!-- unrecognised, never parsed into a stream name.                        -->
-<!--                                                                       -->
-<!-- Values come from their own declared homes and are not restated here   -->
-<!-- either: executor names from global/cast-roster.yaml, status values    -->
-<!-- from lib/ag-stream-status.tsv. This template used to offer ASSIGNED / -->
-<!-- RUNNING / HANDED-OFF / FAILED - a set no validator admitted - and it  -->
-<!-- also listed the field labels, which drifted from the parser's set.    -->
-<!--                                                                       -->
-<!-- The status vocabulary is NOT a literal reuse of docs/standing/BUILDER_CONTRACT -->
-<!-- .md's IN PROGRESS|DONE|STUCK|FAILED - it's a partial overlap only.    -->
-<!--                                                                       -->
-<!-- `risk-tier` and `tier-basis` were REMOVED 2026-08-17. They existed    -->
-<!-- solely to feed `ag-gate risk-tier` and `ag-gate executors`, both      -->
-<!-- deleted by the simplification burst; without those gates the two      -->
-<!-- fields were metadata nothing read.                                    -->
-<!--                                                                       -->
-<!-- Renaming a label in lib/ag-stream-fields.tsv renames it in every      -->
-<!-- parser at once - that is the point of the table - but it invalidates  -->
-<!-- every AIGILE_STATUS.md already on disk, so treat a rename as a        -->
-<!-- migration. This template used to warn specifically that `handoff      -->
-<!-- head` must not be renamed because scripts/ag-burst-base parsed that   -->
-<!-- exact string; it no longer does, so the warning is now the general    -->
-<!-- one above. Do not fold `handoff head` into `artifact`: a SHA and a    -->
-<!-- report/diff-range path are different things.                          -->
-<!--                                                                       -->
-<!-- Mid-burst /ag-stream additions and intra-burst /ag-handoff swaps      -->
-<!-- still write the legacy triple (builders/handoff head/status) as of    -->
-<!-- this schema version - full write-side migration is deferred. When     -->
-<!-- both shapes are present on one stream, `executor` wins over           -->
-<!-- `builders`, and the `status` line is authoritative for status.        -->
+None.
 
 ## Ship Reviews
 
