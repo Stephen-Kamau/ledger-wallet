@@ -34,3 +34,6 @@ Columns: **Time (UTC)** | **Operator** | **Action** | **AI-gile / git command** 
 | 2026-11-11T22:08Z | amara | **ownership ruling on grab** | (owner decision D-A1) | REJECTS Dakari's shape (ListenAndServe in her main.go). Ruling: cmd/ledgerd stays Amara; api exposes NewHandler; Amara folds the mount, Dakari's edit reverted. cmd<-api<-core preserved. |
 | 2026-11-11T22:10Z | coordinator | **resolve conflict** | rewrite cmd/ledgerd/main.go (Amara-authored) | grab reverted, owner's wiring applied; build+vet+tests green; committed 93cbd7f |
 | 2026-11-11T22:11Z | nia | provision + scope + claim | `git clone`; `ag-phase ...Producing` | **signed claim** globs [web/**], sig yes; coding web UI |
+| 2026-11-11T22:20Z | nia | code web/ | (delegated agent) `tsc --noEmit`, `vitest run`, `vite build` | tsc clean, vitest 23/23, build clean; committed, integrated to dev |
+| 2026-11-11T22:24Z | coordinator | **review-independence gate** | `ag_claims.check_independence` | **zola=PASS** (no claim); **amara=BLOCK**, **dakari=BLOCK** (hold intersecting claims). Only the non-builder may review - gate enforces it. |
+| 2026-11-11T22:25Z | zola | independent review | (reviewer seat, read-only) | reviewing full built diff; writing docs/operators-review-build-v1.md |

@@ -58,6 +58,13 @@ updates (R17) is structural (balances are derived). R4 idempotency is backstoppe
 mutexes and optimistic concurrency were rejected as over-engineering, DEFERRED behind an R19
 bottleneck trigger.
 
+**Empirical correction (build-v1, Zola finding C-2).** The design predicted reads would "dwarf"
+writes under WAL. The measured R19 baseline (`tests/throughput_baseline.txt`) shows the opposite:
+with modernc's pure-Go SQLite, reads run ~5x SLOWER than writes. Causes: a ~0.6ms per-query floor
+in the pure-Go driver, the derived-balance read being an O(postings) `SUM` (R10), and a two-query
+read path. The WAL rationale (reads do not block the writer) still holds; the relative-magnitude
+claim does not. Not a correctness issue - recorded so the papers do not assert a false number.
+
 ### Schema (shared core ∩ migrations — the R24 overlap)
 
 Three tables: `accounts`, `transfers` (with `UNIQUE(owner, idempotency_key)`), `postings`

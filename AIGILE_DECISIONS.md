@@ -31,3 +31,20 @@ the burst coordinator and recorded here.
   does not own returns **404** (not 403) to avoid leaking account existence. System/mint
   accounts are readable only by the configured admin set. The web layer drops its "403 not your
   account" state accordingly (reads are 404 or 200).
+
+## build-v1 — independent review findings (Zola, `docs/operators-review-build-v1.md`)
+
+Verdict APPROVE-WITH-CONDITIONS. Dispositions (coordinator):
+
+- **C-1 (medium) — FIXED in burst.** Adapter computed `postings.seq` but never wrote it back into
+  the returned transfer result (real adapter reported `seq:0`; fakes hid it). A defect found in a
+  burst is fixed in the burst — Amara fixed it with a real-adapter test the fakes cannot satisfy.
+- **C-2 (medium) — RECONCILED (docs).** R19 baseline contradicted the "reads dwarf writes" design
+  claim. Not a code bug; `AIGILE_DESIGN.md` concurrency section now records the empirical reality.
+- **C-3 (low) — DEFERRED.** UNIQUE→replay backstop not implemented in `InsertTransfer` (returns a
+  raw error on constraint violation). Near-unreachable under `BEGIN IMMEDIATE` (the in-tx
+  `FindTransferByKey` fast-path handles replay). **Trigger:** if the serialized-writer model is
+  ever relaxed (per-account locks / optimistic concurrency), implement the backstop conversion and
+  a test that reaches it.
+- **Conflict resolution — VERIFIED sound.** Zola confirmed via `go list` that no `api→cmd` or
+  `core→cmd` edge exists; dependency direction `cmd→{api,core}` intact after Amara's revert.
