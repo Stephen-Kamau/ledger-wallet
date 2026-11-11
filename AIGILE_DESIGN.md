@@ -1,43 +1,99 @@
 # AIGILE_DESIGN.md
 
-How this system is BUILT. Peer of `AIGILE_CHARTER.md`, which holds vision, objectives and the
-constraints a burst can violate.
+How ledger-wallet is BUILT. Peer of `AIGILE_CHARTER.md` (vision, Hard Specs, constraints).
+Authored by the operator roster in burst `architecture-v1`; the per-stream detail lives under
+`docs/architecture/` and this file is the binding synthesis.
 
-## The boundary, because it is the whole point of having two files
+## Status
 
-A **hard spec** is a non-negotiable constraint a burst can VIOLATE - "no hardcoded family
-dependencies in the skills layer", "role independence is by model family". You can check
-whether a burst broke one.
-
-**Design** is how the thing is built: architecture, feature sets, metric definitions,
-configuration references. You cannot violate a feature list, only implement it or not.
-
-Content drifts into the CHARTER because everything feels non-negotiable while you are writing
-it. In `aigile-canonical` that drift reached 38,905 bytes of design sitting in `## Hard
-Specs`, read in full at `/ag-plan` Step 1 by every burst in every managed repo - 60% of the
-entire mandatory read. This file exists so that content has somewhere correct to go.
-
-## When to read it
-
-**Not at `/ag-plan` Step 1.** It is deliberately absent from `scripts/ag-brief-state`. If it
-were in the default read it would be the CHARTER again under another name.
-
-**Mandatory when a burst's scope names anything this file describes.** That trigger lives in
-`/ag-plan` Step 1 and `/ag-challenge --plan` so it fires without anyone remembering it - "read
-it when designing" is an intention, and an intention is not a mechanism.
-
-## Sections
-
-Add sections as the design acquires them. Suggested starting shape:
+Architecture reviewed independently by Zola (`docs/architecture/99-review.md`): **APPROVE-WITH-
+CONDITIONS**. The chain is coherent and the concurrency model is sound; four conditions
+(below) must be resolved before `core`/`api`/`web` implementation starts. They are the agenda
+for the first build burst.
 
 ## Architecture
 
-<!-- Components and how they fit together. -->
+Three layers plus storage, a strict `core → api → web` dependency chain:
 
-## Metrics
+```
+  web (React/TS)            Nia    docs/architecture/20-web.md
+     |  HTTP (typed client, Bearer auth)
+  api (net/http)           Dakari  docs/architecture/10-api.md
+     |  Ledger interface only (never Store/Tx)
+  core (invariant engine)  Amara   docs/architecture/00-core.md
+     |  Store interface (port)
+  internal/sqlite (WAL)    [UNOWNED - condition A]
+```
 
-<!-- What is measured, how it is computed, and what a number means. -->
+- **core** is storage-agnostic. Balances are derived from postings (R10), postings are
+  append-only (R5). Double-entry invariants (R1–R5) are enforced here.
+- **api** establishes *who is asking* (authentication), sets `TransferCmd.Authorizer`, and
+  maps core's typed errors to HTTP status + stable `code` (never a bare 500). It authorizes
+  nothing — core owns ownership (R7).
+- **web** branches on the stable error `code`, not HTTP status; renders int64 minor units
+  without float math.
 
-## Configuration reference
+### The frozen core contract (the chain's seam)
 
-<!-- Roles, profiles, and the files that hold them. -->
+```go
+type Ledger interface {
+    CreateAccount(ctx, CreateAccountCmd) (Account, error)   // R6, R9
+    GetAccount(ctx, AccountID) (Account, error)             // R9 — added by chain ruling
+    Balance(ctx, AccountID) (Amount, error)                 // R10, derived, currency-less
+    Transfer(ctx, TransferCmd) (TransferResult, error)      // R1–R8, R11
+    Statement(ctx, AccountID, Page) (StatementPage, error)  // R12, keyset-paged
+}
+```
+`Amount = int64` minor units (no floats). Balance body is composed `{amount: Balance(id),
+currency: GetAccount(id).Currency}`. `Store`/`Tx` is the storage port; `Tx` exposes no
+posting update/delete — append-only is enforced by the absence of a code path.
+
+### Concurrency (R17/R18)
+
+Single serialized writer: SQLite **WAL + `BEGIN IMMEDIATE`**, with the R3 sufficiency check
+executed inside the write transaction against the live balance. The write lock spans
+balance-read-then-insert, so no-double-spend (R18) follows from serialization and no-lost-
+updates (R17) is structural (balances are derived). R4 idempotency is backstopped by
+`UNIQUE(owner, idempotency_key)`. `busy_timeout` required on every connection. Per-account
+mutexes and optimistic concurrency were rejected as over-engineering, DEFERRED behind an R19
+bottleneck trigger.
+
+### Schema (shared core ∩ migrations — the R24 overlap)
+
+Three tables: `accounts`, `transfers` (with `UNIQUE(owner, idempotency_key)`), `postings`
+(`UNIQUE(account_id, seq)`, append-only trigger). Numbered idempotent migrations (R14);
+`0002` adds a `currencies` metadata table (R15) — `holds` was deferred to Amara since it
+would touch the `Ledger` port. DDL in `docs/architecture/30-schema-migrations-tests.md`.
+
+### Error contract (api → web)
+
+One body shape `{error:{code,message,request_id}}`. Status split: 401 unauthenticated
+(api) vs 403 unauthorized/privileged (core ownership) vs 409/422 business rejection
+(inline on the form). Full table in `10-api.md` §3; the web `code → message/placement` map
+in `20-web.md` §3.
+
+## Open conditions before implementation (from the independent review)
+
+- **A (blocking).** `internal/sqlite` adapter + `cmd/ledgerd` are unowned — they carry
+  `BEGIN IMMEDIATE`, PRAGMAs, `seq` assignment, the UNIQUE→replay conversion, and
+  system-account provisioning. Owner: Orchestrator/Amara.
+- **B (blocking).** Freeze the `seq`-generation site: adapter assigns `MAX(seq)+1` per
+  account inside `InsertTransfer` under the write lock; ratify Kofi's `UNIQUE(account_id,
+  seq)`. Owner: Amara.
+- **C (blocking).** R20 "accounts" plural is unmet — add `GET /accounts` (owner = bearer
+  principal) and a `Ledger` list method. Owner: Dakari + Amara.
+- **D (blocking).** Read-side authorization is undecided (web codes a 403 the backend never
+  emits). Decide ownership checks on balance/statement reads and the 403-vs-404 shape.
+  Owner: Dakari + Amara.
+- **E/F (non-blocking).** Specify the UNIQUE→replay conversion layer; link the currency
+  minor-unit scale (frontend const vs `currencies` table) — expose via `GET /currencies`.
+
+## Per-stream sources
+
+| Doc | Author | Covers |
+|---|---|---|
+| `docs/architecture/00-core.md` | Amara | domain model, invariants, `Ledger`/`Store`, concurrency, schema |
+| `docs/architecture/10-api.md` | Dakari | endpoints, auth boundary, error mapping, idempotency |
+| `docs/architecture/20-web.md` | Nia | three views, error UI, money precision |
+| `docs/architecture/30-schema-migrations-tests.md` | Kofi | migrations, evolution, concurrency/throughput tests |
+| `docs/architecture/99-review.md` | Zola | independent review, verdict, open questions |

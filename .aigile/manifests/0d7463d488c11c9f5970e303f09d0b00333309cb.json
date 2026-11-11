@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.13.0",
+  "aigile_version": "16.14",
+  "canonical_pin": "unpinned",
+  "canonical_install": {
+    "mode": "develop",
+    "version": "16.14",
+    "source_commit": "d47f481d5adb67af6156ae475357d947866ee58f",
+    "dirty": 0
+  },
+  "burst_sha": "0d7463d488c11c9f5970e303f09d0b00333309cb",
+  "project_slug": "ledger-wallet",
+  "burst_label": null,
+  "orchestrator": {
+    "name": "Stephen Kamau",
+    "email": "stephen.kamau@prospect33.com"
+  },
+  "status": "in-flight",
+  "started_at": "2026-11-11T16:00:27Z",
+  "finalised_at": null,
+  "primary_usage": null,
+  "phases": [
+    {
+      "name": "Producing",
+      "entered_at": "2026-11-11T16:02:08Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.14",
+        "source_commit": "d47f481d5adb67af6156ae475357d947866ee58f",
+        "dirty": 0
+      }
+    }
+  ],
+  "streams": [],
+  "stream_dependency_edges": [],
+  "builder_declarations": [],
+  "builder_terminal_invocations": [],
+  "governance_invocations": [],
+  "ship_fallback_authorizations": [],
+  "archive_locator": null,
+  "archive_receipts": [],
+  "refreezes": [],
+  "reviews": {},
+  "contributors": [],
+  "diff_stat": null,
+  "token_economics": null,
+  "test_economics": null
+}
