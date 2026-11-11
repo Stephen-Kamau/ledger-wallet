@@ -71,7 +71,13 @@
     "path": "AIGILE_PLAN/closed/2026-11-11-architecture-v1-0d7463d",
     "recorded_at": "2026-11-11T18:18:31Z"
   },
-  "archive_receipts": [],
+  "archive_receipts": [
+    {
+      "archive_commit": "fa96e500c4da3db2a66a258b2c5219206397fe45",
+      "archive_path": "AIGILE_PLAN/closed/2026-11-11-architecture-v1-0d7463d",
+      "recorded_at": "2026-11-11T18:18:31Z"
+    }
+  ],
   "refreezes": [],
   "reviews": {},
   "contributors": [],
