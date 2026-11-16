@@ -85,6 +85,8 @@ func (h *Handler) Router() http.Handler {
 	mux.HandleFunc("GET /accounts/{id}", h.getBalance)
 	mux.HandleFunc("POST /transfers", h.createTransfer)
 	mux.HandleFunc("GET /accounts/{id}/statement", h.getStatement)
+	mux.HandleFunc("POST /accounts/{id}/holds", h.placeHold)
+	mux.HandleFunc("DELETE /accounts/{id}/holds/{holdId}", h.releaseHold)
 	// Catch-all for unknown paths → typed 404. More specific patterns above win
 	// (ServeMux longest-pattern precedence); a wrong method on a known path is
 	// ServeMux's own 405.

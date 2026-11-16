@@ -16,10 +16,30 @@ type fakeStore struct {
 	accounts  map[AccountID]Account
 	transfers []Transfer
 	postings  []Posting
+	holds     map[HoldID]Hold
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{accounts: map[AccountID]Account{}}
+	return &fakeStore{accounts: map[AccountID]Account{}, holds: map[HoldID]Hold{}}
+}
+
+func (f *fakeStore) ActiveHoldsTotal(ctx context.Context, id AccountID) (Amount, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, err := f.getAccount(id); err != nil {
+		return 0, err
+	}
+	return f.activeHoldsTotal(id), nil
+}
+
+func (f *fakeStore) activeHoldsTotal(id AccountID) Amount {
+	var sum Amount
+	for _, h := range f.holds {
+		if h.Account == id && h.Active {
+			sum += h.Amount
+		}
+	}
+	return sum
 }
 
 func (f *fakeStore) InTx(ctx context.Context, fn func(tx Tx) error) error {
@@ -132,5 +152,36 @@ func (t *fakeTx) InsertTransfer(tr Transfer) error {
 		t.s.postings = append(t.s.postings, tr.Postings[i])
 	}
 	t.s.transfers = append(t.s.transfers, tr)
+	return nil
+}
+
+func (t *fakeTx) ActiveHoldsTotal(id AccountID) (Amount, error) {
+	return t.s.activeHoldsTotal(id), nil
+}
+
+func (t *fakeTx) FindHoldByKey(owner PrincipalID, key string) (Hold, bool, error) {
+	for _, h := range t.s.holds {
+		if h.Owner == owner && h.IdempotencyKey == key {
+			return h, true, nil
+		}
+	}
+	return Hold{}, false, nil
+}
+
+func (t *fakeTx) InsertHold(h Hold) error {
+	t.s.holds[h.ID] = h
+	return nil
+}
+
+func (t *fakeTx) GetHold(id HoldID) (Hold, bool, error) {
+	h, ok := t.s.holds[id]
+	return h, ok, nil
+}
+
+func (t *fakeTx) ReleaseHold(id HoldID) error {
+	if h, ok := t.s.holds[id]; ok {
+		h.Active = false
+		t.s.holds[id] = h
+	}
 	return nil
 }

@@ -15,6 +15,8 @@ type Store interface {
 	AccountsByOwner(ctx context.Context, owner PrincipalID) ([]Account, error)
 	Balance(ctx context.Context, id AccountID) (Amount, error)
 	Statement(ctx context.Context, id AccountID, page Page) (StatementPage, error)
+	// ActiveHoldsTotal sums the amounts of an account's active holds (read-only).
+	ActiveHoldsTotal(ctx context.Context, id AccountID) (Amount, error)
 }
 
 // Tx is the transactional surface. It exposes INSERTs and reads but DELIBERATELY
@@ -29,4 +31,12 @@ type Tx interface {
 	InsertAccount(a Account) error
 	FindTransferByKey(owner PrincipalID, key string) (Transfer, bool, error) // R4 lookup
 	InsertTransfer(t Transfer) error                                         // writes transfer + postings atomically
+
+	// Hold surface. ActiveHoldsTotal is the live reserved sum under the write lock;
+	// FindHoldByKey is the idempotency lookup; GetHold loads a hold for release.
+	ActiveHoldsTotal(id AccountID) (Amount, error)
+	FindHoldByKey(owner PrincipalID, key string) (Hold, bool, error)
+	InsertHold(h Hold) error
+	GetHold(id HoldID) (Hold, bool, error)
+	ReleaseHold(id HoldID) error // marks the hold inactive (idempotent on an active hold)
 }

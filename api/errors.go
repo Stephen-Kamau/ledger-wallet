@@ -45,6 +45,7 @@ var coreErrorMap = []coreErrorRow{
 	{core.ErrAccountNotFound, http.StatusNotFound, "account_not_found"},             // 404
 	{core.ErrIdempotencyConflict, http.StatusConflict, "idempotency_conflict"},      // 409 (R4)
 	{core.ErrInvalidAccount, http.StatusUnprocessableEntity, "invalid_account"},     // 422 (R6)
+	{core.ErrHoldNotFound, http.StatusNotFound, "hold_not_found"},                   // 404 (holds)
 }
 
 // writeJSON serialises a success body. A marshal failure is the one place a bare
