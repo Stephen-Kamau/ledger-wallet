@@ -4,8 +4,8 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 ## Current state
 
-**Phase:** Planning
-**Active burst:** collision-v2
+**Phase:** Idle
+**Active burst:** None
 **Burst base:** None
 **Plan reference:** None
 **Next action:** Idle - run /ag-plan to start a burst
@@ -40,7 +40,6 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 <!-- when an in-session rescue thread may already exist. See AIGILE_RULES  -->
 <!-- ### Codex invocation for the full rule.                               -->
 
-**Planning started:** 2026-11-16T07:30:45Z
 ## Active streams
 
 None.
