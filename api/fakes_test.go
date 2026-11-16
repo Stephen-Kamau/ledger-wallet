@@ -17,6 +17,7 @@ type memStore struct {
 	transfers  map[string]core.Transfer // key = owner + "\x00" + idempotencyKey
 	seq        map[core.AccountID]int64
 	currencies []core.CurrencyMeta
+	holds      map[core.HoldID]core.Hold
 }
 
 func newMemStore() *memStore {
@@ -24,7 +25,25 @@ func newMemStore() *memStore {
 		accounts:  map[core.AccountID]core.Account{},
 		transfers: map[string]core.Transfer{},
 		seq:       map[core.AccountID]int64{},
+		holds:     map[core.HoldID]core.Hold{},
 	}
+}
+
+func (m *memStore) ActiveHoldsTotal(ctx context.Context, id core.AccountID) (core.Amount, error) {
+	if _, err := m.GetAccount(ctx, id); err != nil {
+		return 0, err
+	}
+	return m.activeHoldsTotal(id), nil
+}
+
+func (m *memStore) activeHoldsTotal(id core.AccountID) core.Amount {
+	var sum core.Amount
+	for _, h := range m.holds {
+		if h.Account == id && h.Active {
+			sum += h.Amount
+		}
+	}
+	return sum
 }
 
 func (m *memStore) InTx(ctx context.Context, fn func(tx core.Tx) error) error {
@@ -137,6 +156,37 @@ func (t *memTx) InsertTransfer(tr core.Transfer) error {
 	return nil
 }
 
+func (t *memTx) ActiveHoldsTotal(id core.AccountID) (core.Amount, error) {
+	return t.m.activeHoldsTotal(id), nil
+}
+
+func (t *memTx) FindHoldByKey(owner core.PrincipalID, key string) (core.Hold, bool, error) {
+	for _, h := range t.m.holds {
+		if h.Owner == owner && h.IdempotencyKey == key {
+			return h, true, nil
+		}
+	}
+	return core.Hold{}, false, nil
+}
+
+func (t *memTx) InsertHold(h core.Hold) error {
+	t.m.holds[h.ID] = h
+	return nil
+}
+
+func (t *memTx) GetHold(id core.HoldID) (core.Hold, bool, error) {
+	h, ok := t.m.holds[id]
+	return h, ok, nil
+}
+
+func (t *memTx) ReleaseHold(id core.HoldID) error {
+	if h, ok := t.m.holds[id]; ok {
+		h.Active = false
+		t.m.holds[id] = h
+	}
+	return nil
+}
+
 // fakeLedger is a programmable core.Ledger for precise error-mapping and D-D1
 // tests. Each method returns the configured value/error.
 type fakeLedger struct {
@@ -154,6 +204,11 @@ type fakeLedger struct {
 	createErr     error
 	currencies    []core.CurrencyMeta
 	currenciesErr error
+	hold          core.Hold
+	holdErr       error
+	releaseErr    error
+	available     core.Amount
+	availErr      error
 }
 
 func (f *fakeLedger) CreateAccount(ctx context.Context, cmd core.CreateAccountCmd) (core.Account, error) {
@@ -190,4 +245,16 @@ func (f *fakeLedger) Statement(ctx context.Context, id core.AccountID, page core
 
 func (f *fakeLedger) ListCurrencies(ctx context.Context) ([]core.CurrencyMeta, error) {
 	return f.currencies, f.currenciesErr
+}
+
+func (f *fakeLedger) PlaceHold(ctx context.Context, cmd core.HoldCmd) (core.Hold, error) {
+	return f.hold, f.holdErr
+}
+
+func (f *fakeLedger) ReleaseHold(ctx context.Context, authorizer core.PrincipalID, id core.HoldID) error {
+	return f.releaseErr
+}
+
+func (f *fakeLedger) AvailableBalance(ctx context.Context, id core.AccountID) (core.Amount, error) {
+	return f.available, f.availErr
 }

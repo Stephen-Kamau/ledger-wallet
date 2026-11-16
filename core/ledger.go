@@ -33,6 +33,20 @@ type Ledger interface {
 	// ListCurrencies returns the public currency reference metadata (migration
 	// 0002), ordered by code. Public reference data: not owned, not principal-scoped.
 	ListCurrencies(ctx context.Context) ([]CurrencyMeta, error)
+
+	// PlaceHold reserves Amount on Account without posting (an account hold). The
+	// authorizer must own the account (R7, reused). It reduces the AVAILABLE balance
+	// and is rejected if available (balance minus active holds) would go negative on a
+	// non-AllowNegative account (ErrInsufficientFunds). Idempotent per (owner, key).
+	PlaceHold(ctx context.Context, cmd HoldCmd) (Hold, error)
+
+	// ReleaseHold releases an active hold, freeing the reserved funds. The authorizer
+	// must own the held account (R7). An unknown or already-released hold returns
+	// ErrHoldNotFound.
+	ReleaseHold(ctx context.Context, authorizer PrincipalID, id HoldID) error
+
+	// AvailableBalance is the posted balance minus the sum of active holds.
+	AvailableBalance(ctx context.Context, id AccountID) (Amount, error)
 }
 
 // ledger is the concrete invariant engine over a Store. It is the only writer of
@@ -195,4 +209,106 @@ func (l *ledger) materialise(cmd TransferCmd, entries []Entry) Transfer {
 		CreatedAt:      now,
 		Postings:       postings,
 	}
+}
+
+// PlaceHold reserves funds without posting. The ordering mirrors Transfer: cheap,
+// pure, caller-visible rejections (positive magnitude, currency, ownership) happen
+// before the transaction opens; the idempotency replay and the available-funds check
+// happen inside it, under the write lock, because they depend on live state.
+func (l *ledger) PlaceHold(ctx context.Context, cmd HoldCmd) (Hold, error) {
+	// --- pre-transaction: cheap, pure, no writes ---
+	if cmd.Amount <= 0 { // a hold reserves a positive magnitude
+		return Hold{}, ErrUnbalanced
+	}
+	acct, err := l.store.GetAccount(ctx, cmd.Account)
+	if err != nil {
+		return Hold{}, err // ErrAccountNotFound
+	}
+	if acct.Currency != cmd.Currency { // R8, reused
+		return Hold{}, ErrCurrencyMismatch
+	}
+	if acct.Owner != cmd.Authorizer { // R7, reused - before any write
+		return Hold{}, ErrUnauthorized
+	}
+
+	// --- transaction: serialized writer; replay then sufficiency under the lock ---
+	var result Hold
+	err = l.store.InTx(ctx, func(tx Tx) error {
+		prior, ok, ferr := tx.FindHoldByKey(cmd.Authorizer, cmd.IdempotencyKey)
+		if ferr != nil {
+			return ferr
+		}
+		if ok { // replay: no second reservation
+			if !sameHoldParams(prior, cmd) {
+				return ErrIdempotencyConflict
+			}
+			result = prior
+			return nil
+		}
+
+		if !acct.AllowNegative { // available (balance - active holds) must stay >= 0
+			bal, berr := tx.Balance(cmd.Account)
+			if berr != nil {
+				return berr
+			}
+			held, herr := tx.ActiveHoldsTotal(cmd.Account)
+			if herr != nil {
+				return herr
+			}
+			if bal-held-cmd.Amount < 0 {
+				return ErrInsufficientFunds
+			}
+		}
+
+		h := Hold{
+			ID:             HoldID(newID("hold")),
+			Account:        cmd.Account,
+			Owner:          cmd.Authorizer,
+			Amount:         cmd.Amount,
+			Currency:       cmd.Currency,
+			IdempotencyKey: cmd.IdempotencyKey,
+			Active:         true,
+			CreatedAt:      l.now(),
+		}
+		if ierr := tx.InsertHold(h); ierr != nil {
+			return ierr
+		}
+		result = h
+		return nil
+	})
+	if err != nil {
+		return Hold{}, err
+	}
+	return result, nil
+}
+
+// ReleaseHold frees an active hold's funds. The lookup, the ownership check and the
+// release all happen under the write lock so a concurrent place/release cannot race.
+func (l *ledger) ReleaseHold(ctx context.Context, authorizer PrincipalID, id HoldID) error {
+	return l.store.InTx(ctx, func(tx Tx) error {
+		h, ok, err := tx.GetHold(id)
+		if err != nil {
+			return err
+		}
+		if !ok || !h.Active { // unknown or already released
+			return ErrHoldNotFound
+		}
+		if h.Owner != authorizer { // R7, reused: only the owner may release
+			return ErrUnauthorized
+		}
+		return tx.ReleaseHold(id)
+	})
+}
+
+// AvailableBalance is the posted balance minus the sum of active holds (read-only).
+func (l *ledger) AvailableBalance(ctx context.Context, id AccountID) (Amount, error) {
+	bal, err := l.store.Balance(ctx, id) // also the ErrAccountNotFound guard
+	if err != nil {
+		return 0, err
+	}
+	held, err := l.store.ActiveHoldsTotal(ctx, id)
+	if err != nil {
+		return 0, err
+	}
+	return bal - held, nil
 }
