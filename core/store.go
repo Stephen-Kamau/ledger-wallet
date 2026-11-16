@@ -15,6 +15,7 @@ type Store interface {
 	AccountsByOwner(ctx context.Context, owner PrincipalID) ([]Account, error)
 	Balance(ctx context.Context, id AccountID) (Amount, error)
 	Statement(ctx context.Context, id AccountID, page Page) (StatementPage, error)
+	ListCurrencies(ctx context.Context) ([]CurrencyMeta, error)
 }
 
 // Tx is the transactional surface. It exposes INSERTs and reads but DELIBERATELY

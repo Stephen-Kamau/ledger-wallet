@@ -78,6 +78,23 @@ type statementResp struct {
 	HasMore      bool          `json:"has_more"`
 }
 
+// currencyResp is one element of GET /currencies - the public reference metadata
+// from migration 0002. minor_unit is the decimal scale; symbol is the display glyph.
+type currencyResp struct {
+	Code      string `json:"code"`
+	MinorUnit int    `json:"minor_unit"`
+	Symbol    string `json:"symbol"`
+}
+
+// currenciesResp is the GET /currencies list body.
+type currenciesResp struct {
+	Currencies []currencyResp `json:"currencies"`
+}
+
+func toCurrencyResp(c core.CurrencyMeta) currencyResp {
+	return currencyResp{Code: c.Code, MinorUnit: c.MinorUnit, Symbol: c.Symbol}
+}
+
 func toAccountResp(a core.Account) accountResp {
 	return accountResp{
 		ID:            string(a.ID),

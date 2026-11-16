@@ -12,10 +12,11 @@ import (
 // (§5) closely enough for the invariant tests (true contention is Kofi's sqlite-level
 // suite).
 type fakeStore struct {
-	mu        sync.Mutex
-	accounts  map[AccountID]Account
-	transfers []Transfer
-	postings  []Posting
+	mu         sync.Mutex
+	accounts   map[AccountID]Account
+	transfers  []Transfer
+	postings   []Posting
+	currencies []CurrencyMeta
 }
 
 func newFakeStore() *fakeStore {
@@ -96,6 +97,15 @@ func (f *fakeStore) Statement(ctx context.Context, id AccountID, page Page) (Sta
 	if n := len(ps); n > 0 {
 		out.NextAfterSeq = ps[n-1].Seq
 	}
+	return out, nil
+}
+
+func (f *fakeStore) ListCurrencies(ctx context.Context) ([]CurrencyMeta, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]CurrencyMeta, len(f.currencies))
+	copy(out, f.currencies)
+	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
 	return out, nil
 }
 

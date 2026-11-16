@@ -109,6 +109,27 @@ func (s *Store) Statement(ctx context.Context, id core.AccountID, page core.Page
 	return out, nil
 }
 
+// ListCurrencies returns the currency reference rows (migration 0002), ordered by
+// code. Read-only path; the table is seeded by the migrator, not this adapter's
+// embeddedSchema, so this reads whatever the migrated DB holds.
+func (s *Store) ListCurrencies(ctx context.Context) ([]core.CurrencyMeta, error) {
+	rows, err := s.db.QueryContext(ctx, selectCurrencies)
+	if err != nil {
+		return nil, fmt.Errorf("list currencies: %w", err)
+	}
+	defer rows.Close()
+
+	var out []core.CurrencyMeta
+	for rows.Next() {
+		var c core.CurrencyMeta
+		if err := rows.Scan(&c.Code, &c.MinorUnit, &c.Symbol); err != nil {
+			return nil, fmt.Errorf("scan currency: %w", err)
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
 // --- shared query helpers -------------------------------------------------------
 
 const (
@@ -120,6 +141,7 @@ const (
 	selectStatement = `SELECT id, transfer_id, account_id, amount, currency, seq, created_at
 	                   FROM postings WHERE account_id = ? AND seq > ?
 	                   ORDER BY seq ASC LIMIT ?`
+	selectCurrencies = `SELECT code, minor_unit, symbol FROM currencies ORDER BY code`
 )
 
 // rowScanner abstracts *sql.Row and *sql.Rows for the account scanners.

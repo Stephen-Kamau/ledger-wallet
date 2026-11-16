@@ -12,10 +12,11 @@ import (
 // api tests (so ownership/R7, insufficient funds/R3 and idempotency replay/R4 are
 // exercised through core.New, not re-implemented). Serial tests only; no locking.
 type memStore struct {
-	accounts  map[core.AccountID]core.Account
-	postings  []core.Posting
-	transfers map[string]core.Transfer // key = owner + "\x00" + idempotencyKey
-	seq       map[core.AccountID]int64
+	accounts   map[core.AccountID]core.Account
+	postings   []core.Posting
+	transfers  map[string]core.Transfer // key = owner + "\x00" + idempotencyKey
+	seq        map[core.AccountID]int64
+	currencies []core.CurrencyMeta
 }
 
 func newMemStore() *memStore {
@@ -86,6 +87,13 @@ func (m *memStore) Statement(ctx context.Context, id core.AccountID, page core.P
 	return out, nil
 }
 
+func (m *memStore) ListCurrencies(ctx context.Context) ([]core.CurrencyMeta, error) {
+	out := make([]core.CurrencyMeta, len(m.currencies))
+	copy(out, m.currencies)
+	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
+	return out, nil
+}
+
 func (m *memStore) balanceOf(id core.AccountID) core.Amount {
 	var sum core.Amount
 	for _, p := range m.postings {
@@ -140,10 +148,12 @@ type fakeLedger struct {
 	balanceErr  error
 	result      core.TransferResult
 	transferErr error
-	statement   core.StatementPage
-	staterr     error
-	created     core.Account
-	createErr   error
+	statement     core.StatementPage
+	staterr       error
+	created       core.Account
+	createErr     error
+	currencies    []core.CurrencyMeta
+	currenciesErr error
 }
 
 func (f *fakeLedger) CreateAccount(ctx context.Context, cmd core.CreateAccountCmd) (core.Account, error) {
@@ -176,4 +186,8 @@ func (f *fakeLedger) Transfer(ctx context.Context, cmd core.TransferCmd) (core.T
 
 func (f *fakeLedger) Statement(ctx context.Context, id core.AccountID, page core.Page) (core.StatementPage, error) {
 	return f.statement, f.staterr
+}
+
+func (f *fakeLedger) ListCurrencies(ctx context.Context) ([]core.CurrencyMeta, error) {
+	return f.currencies, f.currenciesErr
 }
