@@ -1,0 +1,193 @@
+<title>Multi-terminal test runbook — ledger-wallet</title>
+<style>
+  :root {
+    --bg: #0c1116;
+    --panel: #121922;
+    --panel-2: #0f151d;
+    --bar: #1b2531;
+    --ink: #c9d6e2;
+    --dim: #7d8ea0;
+    --faint: #4a5a6a;
+    --green: #4cc38a;
+    --cyan: #58b6ff;
+    --amber: #e0a33a;
+    --red: #f06a5a;
+    --violet: #b48ead;
+    --rule: rgba(201,214,226,0.10);
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Menlo", "Consolas", monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background:
+      radial-gradient(1200px 600px at 50% -10%, #121b25 0%, var(--bg) 60%);
+    color: var(--ink); font-family: var(--mono); font-size: 14px; line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 0 22px; }
+  a { color: var(--cyan); text-decoration: none; border-bottom: 1px solid var(--rule); }
+  a:hover { border-color: var(--cyan); }
+  a:focus-visible { outline: 2px solid var(--cyan); outline-offset: 2px; }
+
+  header.mast { padding: 56px 0 24px; border-bottom: 1px solid var(--rule); }
+  .tag { color: var(--green); font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; }
+  h1 { font-size: clamp(26px, 5vw, 40px); margin: 12px 0 10px; font-weight: 600; letter-spacing: -0.01em; color: #eaf1f8; text-wrap: balance; }
+  .sub { color: var(--dim); max-width: 70ch; font-size: 14.5px; }
+  .notapart {
+    margin-top: 20px; border: 1px solid color-mix(in srgb, var(--amber) 40%, transparent);
+    background: color-mix(in srgb, var(--amber) 9%, transparent); border-radius: 8px;
+    padding: 12px 16px; color: #e8d3a6; font-size: 13.5px;
+  }
+  .notapart b { color: var(--amber); }
+
+  section { padding: 34px 0; border-bottom: 1px solid var(--rule); }
+  h2 { font-size: 17px; color: #eaf1f8; margin: 0 0 6px; letter-spacing: 0.02em; }
+  h2 .n { color: var(--green); margin-right: 10px; }
+  .lead { color: var(--dim); font-size: 13.5px; margin: 0 0 20px; max-width: 74ch; }
+
+  /* terminal window */
+  .term { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; margin: 0 0 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.35); }
+  .term .bar { background: var(--bar); padding: 9px 14px; display: flex; align-items: center; gap: 10px; border-bottom: 1px solid var(--rule); }
+  .dot { width: 11px; height: 11px; border-radius: 50%; }
+  .dot.r { background: #ec6a5e; } .dot.y { background: #f4bf4f; } .dot.g { background: #61c554; }
+  .bar .who { margin-left: 8px; color: var(--ink); font-size: 12.5px; }
+  .bar .who b { color: #eaf1f8; }
+  .bar .role { color: var(--faint); font-size: 12px; margin-left: auto; }
+  .term .body { padding: 14px 16px; overflow-x: auto; }
+  pre { margin: 0; font-family: var(--mono); font-size: 13px; line-height: 1.75; white-space: pre; }
+  .cmt { color: var(--faint); }
+  .p { color: var(--green); }           /* prompt $ */
+  .cmd { color: var(--ink); }
+  .flag { color: var(--cyan); }
+  .out { color: var(--dim); }
+  .ok { color: var(--green); }
+  .warn { color: var(--amber); }
+  .bad { color: var(--red); }
+  .var { color: var(--violet); }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .card { background: var(--panel-2); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; }
+  .card h3 { margin: 0 0 6px; font-size: 13px; color: var(--green); }
+  .card p { margin: 0; color: var(--dim); font-size: 13px; }
+  .card code { color: var(--cyan); }
+  ul { margin: 6px 0 0; padding-left: 18px; color: var(--dim); font-size: 13.5px; }
+  li { margin: 3px 0; }
+  code { font-family: var(--mono); }
+  .inline { color: var(--cyan); background: rgba(88,182,255,0.08); padding: 1px 5px; border-radius: 4px; }
+  footer { padding: 30px 0 64px; color: var(--faint); font-size: 12.5px; }
+  @media (max-width: 680px){ .grid { grid-template-columns: 1fr; } }
+</style>
+
+<header class="mast">
+  <div class="wrap">
+    <div class="tag">test harness · ledger-wallet</div>
+    <h1>Multi-terminal test runbook</h1>
+    <p class="sub">Run the <b>real</b> multi-user model: each operator in their own terminal, on their own clone, pushing to the same branch concurrently — not sequenced by one coordinator. This is the honest test the single-session simulation could not be.</p>
+    <div class="notapart"><b>This is a test harness, not part of AI-gile.</b> It lives with the <span class="inline">ledger-wallet</span> toy. Nothing here is a canonical methodology change — it's a script for humans (or separate Claude Code sessions) to drive the operators independently.</div>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <section>
+    <h2><span class="n">00</span>What this tests that the simulation didn't</h2>
+    <p class="lead">The earlier runs drove every operator from one session, so collisions were <em>staged</em> and pushes were <em>sequenced</em>. Open these terminals for real and you get genuine concurrency.</p>
+    <div class="grid">
+      <div class="card"><h3>Real push races</h3><p>Two operators push the same branch within seconds — the loser gets a true non-fast-forward rejection, not one I arranged.</p></div>
+      <div class="card"><h3>Interleaved ledgers</h3><p>Concurrent signed claim/phase events land in <code>.aigile/manifests/</code> without a coordinator serializing them — the AGV-328/329 stress.</p></div>
+      <div class="card"><h3>The new command in anger</h3><p>Each terminal provisions itself with one <code>ag-operator join</code> — the fix, used the way it's meant to be.</p></div>
+      <div class="card"><h3>Independent judgement</h3><p>Operators make their own calls; nobody sees the others' context. That's what multi-user is for.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">01</span>Prerequisites (once, already done)</h2>
+    <ul>
+      <li>Toy repo on GitHub: <code>git@github.com:Stephen-Kamau/ledger-wallet.git</code>, branch <code>dev</code>.</li>
+      <li><code>multi_user_enabled</code> is ON and the <b>signed flag is committed</b> (travels to clones).</li>
+      <li>Five operators enrolled in the signed roster: <code>amara, dakari, kofi, nia, zola</code>.</li>
+      <li>AI-gile installed on each machine (<code>ag-setup --develop &lt;clone&gt;</code>), so <code>ag-operator</code> is on PATH.</li>
+      <li>Each operator has their keystore key file. (Real deploy: they <code>ag-identity keygen</code> and you <code>ag-identity enrol</code> them. For this test, distribute the existing <code>&lt;login&gt;.json</code> keys as <code>~/keys/&lt;login&gt;.json</code>.)</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2><span class="n">02</span>Each operator's terminal</h2>
+    <p class="lead">Every operator runs the same three moves: clone, join in one command, then work their stream. Change only the login.</p>
+
+    <div class="term">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="who"><b>Amara</b> — core + adapter</span><span class="role">architect · core/**</span></div>
+      <div class="body"><pre><span class="cmt"># 1. clone + provision in one command</span>
+<span class="p">$</span> <span class="cmd">git clone git@github.com:Stephen-Kamau/ledger-wallet.git amara && cd amara</span>
+<span class="p">$</span> <span class="cmd">ag-operator join <span class="flag">--login</span> amara <span class="flag">--key</span> ~/keys/amara.json \
+      <span class="flag">--email</span> amara@ledger.test <span class="flag">--name</span> "Amara Okeyo"</span>
+<span class="ok">ag-operator join: amara is ready (git Amara Okeyo &lt;amara@ledger.test&gt;, keystore identity present, multi_user on)</span>
+
+<span class="cmt"># 2. work the core stream (edit core/**), then land it</span>
+<span class="p">$</span> <span class="cmd">$EDITOR core/ledger.go</span>
+<span class="p">$</span> <span class="cmd">go test ./... && git add core && git commit -m "feat(core): ..."</span>
+<span class="p">$</span> <span class="cmd">git pull --rebase origin dev && git push origin dev</span></pre></div>
+    </div>
+
+    <div class="term">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="who"><b>Dakari</b> — api</span><span class="role">builder · api/**</span></div>
+      <div class="body"><pre><span class="p">$</span> <span class="cmd">git clone git@github.com:Stephen-Kamau/ledger-wallet.git dakari && cd dakari</span>
+<span class="p">$</span> <span class="cmd">ag-operator join <span class="flag">--login</span> dakari <span class="flag">--key</span> ~/keys/dakari.json <span class="flag">--email</span> dakari@ledger.test <span class="flag">--name</span> "Dakari Mwangi"</span>
+<span class="ok">ag-operator join: dakari is ready (... multi_user on)</span>
+<span class="p">$</span> <span class="cmd">$EDITOR api/handlers.go && go test ./api/...</span>
+<span class="p">$</span> <span class="cmd">git add api && git commit -m "feat(api): ..." && git pull --rebase origin dev && git push origin dev</span></pre></div>
+    </div>
+
+    <div class="term">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="who"><b>Kofi</b> — migrations + tests</span><span class="role">builder · migrations/**, tests/**</span></div>
+      <div class="body"><pre><span class="p">$</span> <span class="cmd">git clone ...ledger-wallet.git kofi && cd kofi</span>
+<span class="p">$</span> <span class="cmd">ag-operator join <span class="flag">--login</span> kofi <span class="flag">--key</span> ~/keys/kofi.json <span class="flag">--email</span> kofi@ledger.test <span class="flag">--name</span> "Kofi Otieno"</span>
+<span class="p">$</span> <span class="cmd">$EDITOR migrations/0004_*.sql && go test ./tests/...</span>
+<span class="p">$</span> <span class="cmd">git add migrations tests && git commit -m "feat: ..." && git pull --rebase origin dev && git push origin dev</span></pre></div>
+    </div>
+
+    <div class="term">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="who"><b>Nia</b> — web</span><span class="role">designer · web/**</span></div>
+      <div class="body"><pre><span class="p">$</span> <span class="cmd">git clone ...ledger-wallet.git nia && cd nia</span>
+<span class="p">$</span> <span class="cmd">ag-operator join <span class="flag">--login</span> nia <span class="flag">--key</span> ~/keys/nia.json <span class="flag">--email</span> nia@ledger.test <span class="flag">--name</span> "Nia Achieng"</span>
+<span class="p">$</span> <span class="cmd">cd web && bun install && $EDITOR src/App.tsx && bunx tsc --noEmit</span>
+<span class="p">$</span> <span class="cmd">git add web && git commit -m "feat(web): ..." && git pull --rebase origin dev && git push origin dev</span></pre></div>
+    </div>
+
+    <div class="term">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="who"><b>Zola</b> — reviewer / unassigned probe</span><span class="role">runner · no stream</span></div>
+      <div class="body"><pre><span class="p">$</span> <span class="cmd">git clone ...ledger-wallet.git zola && cd zola</span>
+<span class="p">$</span> <span class="cmd">ag-operator join <span class="flag">--login</span> zola <span class="flag">--key</span> ~/keys/zola.json <span class="flag">--email</span> zola@ledger.test <span class="flag">--name</span> "Zola Juma"</span>
+<span class="cmt"># Zola reviews others' work (holds no build claim -> review-independence passes)</span>
+<span class="p">$</span> <span class="cmd">git pull origin dev && go test ./... && go vet ./...</span></pre></div>
+    </div>
+  </section>
+
+  <section>
+    <h2><span class="n">03</span>The concurrency drill (the real test)</h2>
+    <p class="lead">Have <b>two</b> operators edit the SAME file at the same time, then both push. This is what the simulation staged — now it happens for real.</p>
+    <div class="term">
+      <div class="bar"><span class="dot r"></span><span class="dot y"></span><span class="dot g"></span><span class="who">Amara &amp; Dakari — both touch <b>core/ledger.go</b></span><span class="role">collision</span></div>
+      <div class="body"><pre><span class="cmt"># both add a method to the Ledger interface, commit, then race to push:</span>
+<span class="var">[amara]</span> <span class="p">$</span> <span class="cmd">git push origin dev</span>          <span class="ok"># wins: fast-forward</span>
+<span class="var">[dakari]</span> <span class="p">$</span> <span class="cmd">git push origin dev</span>         <span class="bad"># ! [rejected] (non-fast-forward)</span>
+<span class="var">[dakari]</span> <span class="p">$</span> <span class="cmd">git pull --rebase origin dev</span>  <span class="warn"># CONFLICT in core/ledger.go</span>
+<span class="var">[dakari]</span> <span class="p">$</span> <span class="cmd">$EDITOR core/ledger.go</span>       <span class="out"># resolve: keep BOTH methods</span>
+<span class="var">[dakari]</span> <span class="p">$</span> <span class="cmd">go test ./... && git rebase --continue && git push origin dev</span>  <span class="ok"># both land</span></pre></div>
+    </div>
+    <p class="lead" style="margin-top:4px;">Expected: the overlap gate WARNS at plan time, <b>git</b> blocks the clobber at push, the merge keeps both edits. If anything else happens — a silent overwrite, a broken ledger, a gate that fired wrongly — that's a real issue to capture.</p>
+  </section>
+
+  <section>
+    <h2><span class="n">04</span>Where the logs are</h2>
+    <div class="grid">
+      <div class="card"><h3>Signed event ledger (automatic)</h3><p><code>.aigile/manifests/&lt;base&gt;.events.jsonl</code> — every claim / phase event, with <code>actor{login,email}</code>, <code>wall</code> timestamp and <code>sig</code>. The machine truth; one per operator's burst base. These merge when operators push.</p></div>
+      <div class="card"><h3>Activity log (curated)</h3><p><code>docs/operators-activity-log.md</code> — a human-readable, timestamped per-operator table. In the real model each operator appends their own rows; it is not auto-captured.</p></div>
+    </div>
+    <p class="lead" style="margin-top:14px;">Each separate terminal also has its own shell history and (if a Claude Code session) its own transcript — the per-operator command record the single-session run could not produce.</p>
+  </section>
+
+</main>
+
+<footer class="wrap">
+  Test harness for ledger-wallet · not part of AI-gile · provision with <code>ag-operator join</code> · logs in <code>.aigile/manifests/</code> + <code>docs/operators-activity-log.md</code>
+</footer>
