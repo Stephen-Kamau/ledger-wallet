@@ -52,14 +52,19 @@ source: verbal - 2026-11-11 (Orchestrator); project.md + requirement.md
 
 ## Discovered Capabilities
 
+> Moved to AIGILE_PLAN/CAPABILITIES.md. CHARTER contains Vision, Hard Specs, Constraints, Objectives, and Success Criteria only.
+
 ## Challenged Decisions
+
+> Moved to AIGILE_DECISIONS.md. CHARTER contains Vision, Hard Specs, Constraints, Objectives, and Success Criteria only.
 
 ## Deferred
 
+> Moved to AIGILE_PLAN/BACKLOG.md. CHARTER contains Vision, Hard Specs, Constraints, Objectives, and Success Criteria only.
+
 ## Under Consideration
 
-- [2026-11-11] Currency conversion for cross-currency transfers - needs: a rate source; out
-  of toy scope unless a stream surfaces demand.
+> Moved to AIGILE_PLAN/BACKLOG.md. CHARTER contains Vision, Hard Specs, Constraints, Objectives, and Success Criteria only.
 
 ## Success Criteria
 
