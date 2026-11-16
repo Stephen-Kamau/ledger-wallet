@@ -106,6 +106,37 @@ func (h *Handler) getBalance(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// getAvailable: GET /accounts/{id}/available → Ledger.AvailableBalance. Owner-
+// authorized exactly like getBalance, including the D-D1 read rule (non-owned → 404,
+// not 403). Available is the posted balance minus the sum of active holds, so a client
+// can see spendable funds while reservations are outstanding. Reuses balanceResp.
+func (h *Handler) getAvailable(w http.ResponseWriter, r *http.Request) {
+	principal := principalFrom(r.Context())
+	id := core.AccountID(r.PathValue("id"))
+
+	acc, err := h.ledger.GetAccount(r.Context(), id)
+	if err != nil {
+		writeCoreErr(w, r, err) // unknown account → 404 account_not_found
+		return
+	}
+	if !h.isAllowedReader(principal, acc.Owner) {
+		// D-D1: do not leak existence of an account the principal does not own.
+		writeErr(w, r, http.StatusNotFound, "account_not_found", "account not found")
+		return
+	}
+
+	amount, err := h.ledger.AvailableBalance(r.Context(), id)
+	if err != nil {
+		writeCoreErr(w, r, err)
+		return
+	}
+	writeJSON(w, r, http.StatusOK, balanceResp{
+		AccountID: string(id),
+		Amount:    int64(amount),
+		Currency:  string(acc.Currency),
+	})
+}
+
 // createTransfer: POST /transfers → Ledger.Transfer (R11, §1.3, §5). It sets
 // Authorizer from auth and does NOT pre-check ownership (core does, §2.2). The
 // Idempotency-Key header is required. A replay (Replayed==true) is 200; a first
