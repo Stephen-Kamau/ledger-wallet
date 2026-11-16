@@ -19,16 +19,22 @@ import (
 func TestR14_ReRunIsNoOp(t *testing.T) {
 	db := openMigrated(t, filepath.Join(t.TempDir(), "r14.db"), true)
 
+	names, err := migrations.Names()
+	if err != nil {
+		t.Fatalf("R14: Names: %v", err)
+	}
+	want := len(names)
+
 	before := versionsOf(t, db)
-	if len(before) != 2 {
-		t.Fatalf("R14: want 2 recorded versions after first apply, got %v", before)
+	if len(before) != want {
+		t.Fatalf("R14: want %d recorded versions after first apply, got %v", want, before)
 	}
 	// Re-run: must be a clean no-op.
 	if err := migrations.Apply(db); err != nil {
 		t.Fatalf("R14: second Apply errored: %v", err)
 	}
-	if n := scalar(t, db, `SELECT COUNT(*) FROM schema_migrations`); n != 2 {
-		t.Fatalf("R14: re-run changed the ledger: %d rows, want 2", n)
+	if n := scalar(t, db, `SELECT COUNT(*) FROM schema_migrations`); n != int64(want) {
+		t.Fatalf("R14: re-run changed the ledger: %d rows, want %d", n, want)
 	}
 	// A third run for good measure.
 	if err := migrations.Apply(db); err != nil {
@@ -53,7 +59,7 @@ func TestR15_SchemaEvolved(t *testing.T) {
 		t.Fatalf("R15: USD minor_unit want 2, got %d", n)
 	}
 	versions := versionsOf(t, db)
-	if len(versions) != 2 || versions[1] != "0002" {
+	if len(versions) < 2 || versions[1] != "0002" {
 		t.Fatalf("R15: evolution not recorded as 0002: %v", versions)
 	}
 }
@@ -74,6 +80,9 @@ func TestR16_BootstrapParity(t *testing.T) {
 	runSomeTransfers(t, evolved) // exercise the v1 schema: accounts, transfers, postings
 	if err := migrations.ApplyOne(evolved, "0002_currencies.sql"); err != nil {
 		t.Fatalf("apply 0002: %v", err)
+	}
+	if err := migrations.ApplyOne(evolved, "0003_holds.sql"); err != nil {
+		t.Fatalf("apply 0003: %v", err)
 	}
 
 	if a, b := schemaOf(t, fresh), schemaOf(t, evolved); a != b {

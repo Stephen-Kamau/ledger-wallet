@@ -78,6 +78,34 @@ type statementResp struct {
 	HasMore      bool          `json:"has_more"`
 }
 
+// holdReq is the POST /accounts/{id}/holds body. The account id is the path param,
+// not a body field; the idempotency key is a header (like transfers).
+type holdReq struct {
+	Amount   int64  `json:"amount"`
+	Currency string `json:"currency"`
+}
+
+// holdResp is the POST /accounts/{id}/holds response.
+type holdResp struct {
+	ID        string `json:"id"`
+	AccountID string `json:"account_id"`
+	Amount    int64  `json:"amount"`
+	Currency  string `json:"currency"`
+	Active    bool   `json:"active"`
+	CreatedAt string `json:"created_at"`
+}
+
+func toHoldResp(h core.Hold) holdResp {
+	return holdResp{
+		ID:        string(h.ID),
+		AccountID: string(h.Account),
+		Amount:    int64(h.Amount),
+		Currency:  string(h.Currency),
+		Active:    h.Active,
+		CreatedAt: h.CreatedAt.UTC().Format(time.RFC3339),
+	}
+}
+
 func toAccountResp(a core.Account) accountResp {
 	return accountResp{
 		ID:            string(a.ID),

@@ -34,4 +34,6 @@ var (
 	ErrIdempotencyConflict = &LedgerError{Code: "idempotency_conflict", Message: "idempotency key reused with different parameters"}
 	// ErrInvalidAccount - a create command missing an owner or currency (R6) -> 422.
 	ErrInvalidAccount = &LedgerError{Code: "invalid_account", Message: "account requires an owner and a currency"}
+	// ErrHoldNotFound - a release names an unknown or already-released hold -> 404.
+	ErrHoldNotFound = &LedgerError{Code: "hold_not_found", Message: "hold not found or already released"}
 )

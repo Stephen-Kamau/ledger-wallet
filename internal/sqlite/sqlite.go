@@ -67,6 +67,20 @@ BEFORE DELETE ON postings
 BEGIN
   SELECT RAISE(ABORT, 'postings are append-only (R5): DELETE forbidden');
 END;
+
+CREATE TABLE IF NOT EXISTS holds (
+  id              TEXT    PRIMARY KEY,
+  account_id      TEXT    NOT NULL REFERENCES accounts(id),
+  owner           TEXT    NOT NULL,
+  idempotency_key TEXT    NOT NULL,
+  amount          INTEGER NOT NULL CHECK (amount > 0),
+  currency        TEXT    NOT NULL,
+  active          INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+  created_at      TEXT    NOT NULL,
+  released_at     TEXT,
+  UNIQUE (owner, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_holds_account_active ON holds(account_id, active);
 `
 
 // Store adapts a *sql.DB to the core.Store port.
