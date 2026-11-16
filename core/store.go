@@ -15,6 +15,7 @@ type Store interface {
 	AccountsByOwner(ctx context.Context, owner PrincipalID) ([]Account, error)
 	Balance(ctx context.Context, id AccountID) (Amount, error)
 	Statement(ctx context.Context, id AccountID, page Page) (StatementPage, error)
+	ListCurrencies(ctx context.Context) ([]CurrencyMeta, error)
 	// ActiveHoldsTotal sums the amounts of an account's active holds (read-only).
 	ActiveHoldsTotal(ctx context.Context, id AccountID) (Amount, error)
 }

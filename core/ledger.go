@@ -30,6 +30,10 @@ type Ledger interface {
 	// Statement returns an account's postings in Seq order, paged (R12).
 	Statement(ctx context.Context, id AccountID, page Page) (StatementPage, error)
 
+	// ListCurrencies returns the public currency reference metadata (migration
+	// 0002), ordered by code. Public reference data: not owned, not principal-scoped.
+	ListCurrencies(ctx context.Context) ([]CurrencyMeta, error)
+
 	// PlaceHold reserves Amount on Account without posting (an account hold). The
 	// authorizer must own the account (R7, reused). It reduces the AVAILABLE balance
 	// and is rejected if available (balance minus active holds) would go negative on a
@@ -104,6 +108,12 @@ func (l *ledger) Statement(ctx context.Context, id AccountID, page Page) (Statem
 		page.Limit = maxPageLimit
 	}
 	return l.store.Statement(ctx, id, page)
+}
+
+// ListCurrencies returns the currency reference metadata (0002); read-only, outside
+// the write tx. The engine does no filtering or ordering - the adapter orders by code.
+func (l *ledger) ListCurrencies(ctx context.Context) ([]CurrencyMeta, error) {
+	return l.store.ListCurrencies(ctx)
 }
 
 // Transfer performs a balanced, authorised, idempotent transfer. The ordering

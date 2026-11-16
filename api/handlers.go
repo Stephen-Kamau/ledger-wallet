@@ -173,6 +173,23 @@ func (h *Handler) getStatement(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, r, http.StatusOK, toStatementResp(id, stmt))
 }
 
+// listCurrencies: GET /currencies → Ledger.ListCurrencies (migration 0002). Public
+// reference data: any authenticated principal may read it (auth is enforced by the
+// middleware on this non-exempt path), but there is no ownership - currencies are not
+// owned, so no principal-specific filtering and no D-D1 read rule applies here.
+func (h *Handler) listCurrencies(w http.ResponseWriter, r *http.Request) {
+	currencies, err := h.ledger.ListCurrencies(r.Context())
+	if err != nil {
+		writeCoreErr(w, r, err)
+		return
+	}
+	out := currenciesResp{Currencies: make([]currencyResp, 0, len(currencies))}
+	for _, c := range currencies {
+		out.Currencies = append(out.Currencies, toCurrencyResp(c))
+	}
+	writeJSON(w, r, http.StatusOK, out)
+}
+
 // placeHold: POST /accounts/{id}/holds → Ledger.PlaceHold. Authorizer is the
 // authenticated principal; core checks ownership (R7, reused) and does NOT leak a
 // non-owned account differently here (core returns ErrUnauthorized/ErrAccountNotFound
