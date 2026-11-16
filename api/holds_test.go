@@ -113,6 +113,67 @@ func TestReleaseHold_204_ThenNotFound(t *testing.T) {
 	}
 }
 
+// GET /accounts/{id}/available returns the posted balance minus active holds, and
+// restores to the posted balance after a release (owner-authorized).
+func TestGetAvailable_ReflectsHolds(t *testing.T) {
+	h, _ := realHandler(WithAdmins("root"))
+	sys := mustCreateNeg(t, h, "root", "USD")
+	alice := mustCreate(t, h, "alice", "USD")
+	do(t, h, http.MethodPost, "/transfers", "root",
+		transferReq{From: sys, To: alice, Amount: 100, Currency: "USD"},
+		map[string]string{"Idempotency-Key": "fund"})
+
+	// Before any hold: available == posted balance == 100.
+	avail := func() int64 {
+		rec := do(t, h, http.MethodGet, "/accounts/"+alice+"/available", "alice", nil, nil)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("available want 200, got %d (%s)", rec.Code, rec.Body.String())
+		}
+		var b balanceResp
+		if err := json.Unmarshal(rec.Body.Bytes(), &b); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		if b.AccountID != alice || b.Currency != "USD" {
+			t.Fatalf("unexpected available body: %+v", b)
+		}
+		return b.Amount
+	}
+	if got := avail(); got != 100 {
+		t.Fatalf("available before hold: want 100, got %d", got)
+	}
+
+	place := do(t, h, http.MethodPost, "/accounts/"+alice+"/holds", "alice",
+		holdReq{Amount: 30, Currency: "USD"}, map[string]string{"Idempotency-Key": "h"})
+	if place.Code != http.StatusCreated {
+		t.Fatalf("place hold: %d (%s)", place.Code, place.Body.String())
+	}
+	if got := avail(); got != 70 {
+		t.Fatalf("available after 30 hold: want 70, got %d", got)
+	}
+
+	var hr holdResp
+	_ = json.Unmarshal(place.Body.Bytes(), &hr)
+	if rel := do(t, h, http.MethodDelete, "/accounts/"+alice+"/holds/"+hr.ID, "alice", nil, nil); rel.Code != http.StatusNoContent {
+		t.Fatalf("release: %d", rel.Code)
+	}
+	if got := avail(); got != 100 {
+		t.Fatalf("available after release: want 100, got %d", got)
+	}
+}
+
+// GET /available on a non-owned account is 404 (D-D1), never a 403 existence leak.
+func TestGetAvailable_NonOwned_404(t *testing.T) {
+	h, _ := realHandler()
+	alice := mustCreate(t, h, "alice", "USD")
+	rec := do(t, h, http.MethodGet, "/accounts/"+alice+"/available", "bob", nil, nil)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("D-D1: want 404, got %d", rec.Code)
+	}
+	if code := decodeErr(t, rec).Code; code != "account_not_found" {
+		t.Fatalf("want account_not_found, got %q", code)
+	}
+}
+
 // Releasing an unknown hold is 404 hold_not_found.
 func TestReleaseHold_Unknown_404(t *testing.T) {
 	h, _ := realHandler()

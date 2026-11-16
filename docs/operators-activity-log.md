@@ -42,3 +42,17 @@ Columns: **Time (UTC)** | **Operator** | **Action** | **AI-gile / git command** 
 | 2026-11-11T22:45Z | amara | fix C-1 | (resume) `go test ./internal/sqlite/` | seq write-back + real-adapter test fakes can't satisfy; 8 tests pass |
 | 2026-11-11T22:47Z | coordinator | integrate C-1 + full suite | `go test ./...` | ALL GREEN: api, core, sqlite, tests (R17/R18/R4/R16/R19). Burst build-v1 done. |
 | 2026-11-11T23:10Z | coordinator | attribution fix (per-operator branches) | `git branch`/`checkout dev -- <scope>`/`push`; `gh pr create` | Weakness corrected: dev commits were all coordinator-authored. Built feature/<op> branches off build-base, each authored by the operator (Amara/Kofi/Dakari/Nia), stacked on the dependency chain. 4 PRs opened (#1 amara->build-base, #2 kofi->amara, #3 dakari->amara, #4 nia->dakari). Now git-blameable per operator. |
+
+## Burst: collision-v2 (holds + currencies — same-file collision test)
+
+| Time (UTC) | Operator | Action | Command | Outcome / notes |
+|---|---|---|---|---|
+| 2026-11-16T07:20Z | coordinator | start burst, overlapping scope | `ag-phase ...`; plan-store | amara(holds)+kofi(currencies) BOTH claim core/**, api/**, internal/sqlite/** |
+| 2026-11-16T07:25Z | amara, kofi | signed claims (overlapping) | `ag-phase ...Producing` | **overlap gate flags amara ∩ kofi** on [api/**, core/**, internal/sqlite/**] at CLAIM time |
+| 2026-11-16T07:40Z | amara | build holds | (agent) `go test ./...` | PlaceHold/ReleaseHold/AvailableBalance + migration 0003; green; edits core/ledger.go end-of-interface |
+| 2026-11-16T07:40Z | kofi | build currencies | (agent) `go test ./...` | ListCurrencies + GET /currencies; green; edits SAME core/ledger.go end-of-interface |
+| 2026-11-16T07:45Z | coordinator | **push collision** | amara push -> ff OK; `git push github HEAD:dev` (kofi) | **kofi push REJECTED (non-fast-forward)** — git prevents the clobber (hard enforcement, beyond the advisory overlap warning) |
+| 2026-11-16T07:46Z | kofi | **merge dev** | `git merge github/dev` | **CONFLICT in 7 files** (core/ledger.go, core/store.go, api/handler.go, api/handlers.go, api/types.go, both fakes) |
+| 2026-11-16T07:50Z | kofi | **resolve keeping BOTH** | (agent) resolve + `go test ./...` | both features survive; a real semantic hazard fixed (two handler bodies were INTERLEAVED at a shared `if err` block); merge committed 7d11fcf; green |
+| 2026-11-16T07:55Z | coordinator | integrate both -> dev | `git fetch`/`checkout`; `go test ./...` | dev has PlaceHold + ListCurrencies; full suite green |
+| 2026-11-16T07:58Z | coordinator | **e2e on live server** | run ledgerd, curl | holds OK (201/409/204); **GET /currencies 500** — embeddedSchema↔migrations DRIFT: currencies table only in migration 0002, live server boots embeddedSchema. Tests passed, e2e caught it. Routed to owner Amara to fix. |

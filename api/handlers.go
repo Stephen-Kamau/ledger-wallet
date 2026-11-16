@@ -190,6 +190,36 @@ func (h *Handler) listCurrencies(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, r, http.StatusOK, out)
 }
 
+// getAvailable: GET /accounts/{id}/available → Ledger.AvailableBalance. Owner-
+// authorized exactly like getBalance (D-D1: non-owned → 404). Returns posted
+// balance minus active holds.
+func (h *Handler) getAvailable(w http.ResponseWriter, r *http.Request) {
+	principal := principalFrom(r.Context())
+	id := core.AccountID(r.PathValue("id"))
+
+	acc, err := h.ledger.GetAccount(r.Context(), id)
+	if err != nil {
+		writeCoreErr(w, r, err) // unknown account → 404 account_not_found
+		return
+	}
+	if !h.isAllowedReader(principal, acc.Owner) {
+		// D-D1: do not leak existence of an account the principal does not own.
+		writeErr(w, r, http.StatusNotFound, "account_not_found", "account not found")
+		return
+	}
+
+	amount, err := h.ledger.AvailableBalance(r.Context(), id)
+	if err != nil {
+		writeCoreErr(w, r, err)
+		return
+	}
+	writeJSON(w, r, http.StatusOK, balanceResp{
+		AccountID: string(id),
+		Amount:    int64(amount),
+		Currency:  string(acc.Currency),
+	})
+}
+
 // placeHold: POST /accounts/{id}/holds → Ledger.PlaceHold. Authorizer is the
 // authenticated principal; core checks ownership (R7, reused) and does NOT leak a
 // non-owned account differently here (core returns ErrUnauthorized/ErrAccountNotFound
