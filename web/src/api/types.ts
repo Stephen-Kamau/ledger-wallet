@@ -36,6 +36,17 @@ export interface Posting {
   currency?: string;
   seq: number;
   created_at?: string;
+
+  // Reversal links (R5 append-only correction). Both are optional because a plain
+  // posting carries neither, and because they are STUB CONTRACT pending dakari's
+  // `POST /entries/{id}/reverse` landing — see ReversalBody below.
+  //
+  // reverses_entry_id: this posting IS the compensating leg for that earlier entry.
+  // reversed_by_entry_id: this posting HAS BEEN reversed by that later entry.
+  // A correction is a new entry, never an edit, so both directions are links and
+  // neither mutates the row it points at.
+  reverses_entry_id?: string;
+  reversed_by_entry_id?: string;
 }
 
 // POST /transfers response (api/types.go transferResp). replayed selects 200 vs 201.
@@ -43,6 +54,26 @@ export interface TransferBody {
   transfer_id: string;
   from: string;
   to: string;
+  amount: Minor;
+  currency: string;
+  replayed: boolean;
+  created_at: string;
+  postings: Posting[];
+}
+
+// POST /entries/{id}/reverse response — the compensating transfer (R5).
+//
+// STUB CONTRACT. dakari is building this endpoint in parallel and it is NOT on dev at
+// the time this was written, nor documented in docs/architecture/10-api.md. The shape
+// below is derived from the two things that ARE fixed: the endpoint path given in the
+// burst brief, and the existing POST /transfers response (transferResp), which this
+// mirrors because a reversal IS a transfer — the only honest difference is the link
+// back to the entry it compensates. `replayed` is carried for the same reason
+// POST /transfers carries it: the reverse is sent with an Idempotency-Key (R4), so a
+// retried reverse must return the original correction rather than post a second one.
+export interface ReversalBody {
+  transfer_id: string; // the compensating transfer this reversal created
+  reverses_entry_id: string; // the posting id that was reversed
   amount: Minor;
   currency: string;
   replayed: boolean;

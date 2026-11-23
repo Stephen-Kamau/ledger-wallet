@@ -93,3 +93,34 @@ button:disabled { opacity: 0.5; cursor: default; }
 .signin-card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 2rem; width: min(360px, 90vw); }
 .signin-card form { display: flex; flex-direction: column; gap: 0.5rem; margin-top: 1rem; }
 .signin-card input { background: var(--bg); border: 1px solid var(--line); border-radius: 6px; color: var(--text); padding: 0.6rem; }
+
+/* --- Reversal (R5 append-only correction) ------------------------------- */
+/* A reversed original keeps its amount — append-only means we never rewrite the
+   row — but is dimmed and struck so it no longer reads as the net effect. */
+.statement tr.reversed-row td { opacity: 0.55; }
+.statement tr.reversed-row td.num { text-decoration: line-through; }
+/* A correction is tinted, not hidden: it IS a real posting. */
+.statement tr.reversal-row td { background: rgba(68,147,248,0.06); }
+
+.row-actions { text-align: right; white-space: nowrap; }
+.rev-badge {
+  font-size: 0.65rem; border-radius: 4px; padding: 0 0.35rem; margin-right: 0.4rem;
+  border: 1px solid currentColor; vertical-align: middle;
+}
+.rev-badge.rev-reversed { color: var(--muted); }
+.rev-badge.rev-reversal { color: var(--accent); }
+
+/* The caption carries the link to the entry on the other end — without it a
+   correction is the unexplained second transfer the requirement forbids. */
+.statement tr.rev-caption td { color: var(--muted); font-size: 0.75rem; padding-top: 0; border-bottom: 1px solid var(--line); }
+.statement tr.rev-caption td:first-child { border-bottom: 1px solid var(--line); }
+.statement tr.rev-error td { padding-top: 0; }
+
+.confirm-inline { display: inline-flex; align-items: center; gap: 0.4rem; }
+.confirm-q { font-size: 0.75rem; color: var(--flag); }
+.link-button.danger { color: var(--debit); }
+
+.notice-banner {
+  color: var(--credit); font-size: 0.85rem; background: rgba(63,185,80,0.08);
+  border: 1px solid rgba(63,185,80,0.3); border-radius: 6px; padding: 0.5rem 0.6rem;
+}
