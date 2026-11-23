@@ -4,7 +4,7 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 ## Current state
 
-**Phase:** Idle
+**Phase:** Planning
 **Active burst:** None
 **Burst base:** None
 **Plan reference:** None
@@ -40,6 +40,8 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 <!-- when an in-session rescue thread may already exist. See AIGILE_RULES  -->
 <!-- ### Codex invocation for the full rule.                               -->
 
+**Burst id:** 5ec0edc10d933a51b167ce5293af1a9ef75c7de8
+**Planning started:** 2026-11-23T12:44:21Z
 ## Active streams
 
 None.
