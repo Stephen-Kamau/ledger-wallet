@@ -397,6 +397,8 @@ func TestErrorMap_EveryCoreSentinelMapped(t *testing.T) {
 		core.ErrIdempotencyConflict,
 		core.ErrInvalidAccount,
 		core.ErrHoldNotFound,
+		core.ErrEntryNotFound,
+		core.ErrAlreadyReversed,
 	}
 	for _, s := range sentinels {
 		found := false

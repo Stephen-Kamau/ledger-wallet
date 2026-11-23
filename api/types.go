@@ -78,6 +78,48 @@ type statementResp struct {
 	HasMore      bool          `json:"has_more"`
 }
 
+// reversalResp is the POST /entries/{id}/reverse body: the compensating transfer,
+// plus the id of the entry it compensates. A reversal IS a transfer (R5: postings
+// are append-only, a correction is an INSERT, never an edit), so the shape MIRRORS
+// transferResp rather than nesting it - `reverses_entry_id` is the only honest
+// difference. replayed selects 200 vs 201, for the same reason POST /transfers
+// carries it: the reverse is sent with an Idempotency-Key, so a retried reverse
+// returns the original correction instead of posting a second one (R4).
+//
+// Flat, and named `reverses_entry_id`, because this is the contract Nia's web layer
+// already codes to (`ReversalBody` in web/src/api/types.ts, written as a declared
+// stub while this endpoint was in flight). The consumer published first and the
+// shape she derived mirrors the house style; api is the owner of the wire contract
+// and adopts it rather than making the consumer rewrite to a nested equivalent.
+type reversalResp struct {
+	TransferID      string        `json:"transfer_id"`
+	ReversesEntryID string        `json:"reverses_entry_id"`
+	From            string        `json:"from"`
+	To              string        `json:"to"`
+	Amount          int64         `json:"amount"`
+	Currency        string        `json:"currency"`
+	Replayed        bool          `json:"replayed"`
+	CreatedAt       string        `json:"created_at"`
+	Postings        []postingResp `json:"postings"`
+}
+
+// toReversalResp renders the compensating transfer plus the link back to the entry
+// it reverses. It reuses toTransferResp so the two bodies cannot drift.
+func toReversalResp(entryID string, t core.Transfer, replayed bool) reversalResp {
+	c := toTransferResp(t, replayed)
+	return reversalResp{
+		TransferID:      c.TransferID,
+		ReversesEntryID: entryID,
+		From:            c.From,
+		To:              c.To,
+		Amount:          c.Amount,
+		Currency:        c.Currency,
+		Replayed:        c.Replayed,
+		CreatedAt:       c.CreatedAt,
+		Postings:        c.Postings,
+	}
+}
+
 // currencyResp is one element of GET /currencies - the public reference metadata
 // from migration 0002. minor_unit is the decimal scale; symbol is the display glyph.
 type currencyResp struct {

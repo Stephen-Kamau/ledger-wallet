@@ -206,14 +206,14 @@ func (t *memTx) ReleaseHold(id core.HoldID) error {
 // fakeLedger is a programmable core.Ledger for precise error-mapping and D-D1
 // tests. Each method returns the configured value/error.
 type fakeLedger struct {
-	account     core.Account
-	accountErr  error
-	accounts    []core.Account
-	accountsErr error
-	balance     core.Amount
-	balanceErr  error
-	result      core.TransferResult
-	transferErr error
+	account       core.Account
+	accountErr    error
+	accounts      []core.Account
+	accountsErr   error
+	balance       core.Amount
+	balanceErr    error
+	result        core.TransferResult
+	transferErr   error
 	statement     core.StatementPage
 	staterr       error
 	created       core.Account
@@ -225,8 +225,16 @@ type fakeLedger struct {
 	releaseErr    error
 	available     core.Amount
 	availErr      error
-	reverseResult core.TransferResult
-	reverseErr    error
+	// Reversal: the result/error to return, plus what the handler actually
+	// passed through the interface, so a test can assert the translation.
+	// Amara's signature is positional (authorizer, entryID, key), matching
+	// ReleaseHold, so the capture fields are positional too.
+	reverseResult     core.TransferResult
+	reverseErr        error
+	reverseAuthorizer core.PrincipalID
+	reverseEntryID    string
+	reverseKey        string
+	reverseCalled     bool
 }
 
 func (f *fakeLedger) CreateAccount(ctx context.Context, cmd core.CreateAccountCmd) (core.Account, error) {
@@ -278,5 +286,9 @@ func (f *fakeLedger) AvailableBalance(ctx context.Context, id core.AccountID) (c
 }
 
 func (f *fakeLedger) Reverse(ctx context.Context, authorizer core.PrincipalID, entryID string, idempotencyKey string) (core.TransferResult, error) {
+	f.reverseAuthorizer = authorizer
+	f.reverseEntryID = entryID
+	f.reverseKey = idempotencyKey
+	f.reverseCalled = true
 	return f.reverseResult, f.reverseErr
 }
