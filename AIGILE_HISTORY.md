@@ -15,7 +15,8 @@ This file keeps everything.
 
 -->
 
-### [2026-11-23] Burst: reversals (amara stream — core/**, internal/sqlite/**)
+### [2026-11-23] Burst: reversals — AMARA STREAM ONLY (core/**, internal/sqlite/**)
+**Scope of this entry:** one stream of a FOUR-stream burst, not the burst. The other three are nia (`web/**`), kofi (`migrations/`, `tests/`) and dakari (`api/**`); zola reviewed all four and the APPROVE-WITH-CONDITIONS verdict covers the whole burst, not just this stream. Raised by kofi, who was right that a reader a month from now would otherwise take this title as the whole thing.
 **Built:** `Reverse(ctx, authorizer, entryID, idempotencyKey)` on `core.Ledger` — a compensating entry with mirrored postings (R1, R2, R5), R3/R7 enforced on the account the reversal DEBITS, R4 replay, R13 typed conflicts. `FindTransferByID` and `FindTransferByPostingID` on `core.Tx` plus their SQLite implementations. At-most-one-reversal is a DERIVED primary key (`rev_<transfer id>`), so reversal shipped with no schema change and no second schema source to drift.
 **Verify:** PASS — Go `./... -race` green across all packages including the real R19 (233s); web 73/73; UI at 1440x900 and 1280x800, four levels each, against real ledgerd with the reverse-stub DISABLED; API 7/7 including 201 to a POSTING id, 409 `already_reversed`, 404 `entry_not_found`. Scope clean: 9 of 9 code files written are inside the declared globs.
 **Steer:** SHIP on D-Z1. Reviewer verdict APPROVE-WITH-CONDITIONS (zola, 8 rounds); C1–C9 closed, conditions 1–3 all closed by ship. `ship-preflight` still refuses (PROFILE_STALE, no route_token); shipped over the recorded exception D-A1 rather than refreezing governance routing to buy a green gate.
