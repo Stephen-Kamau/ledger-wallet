@@ -574,7 +574,13 @@ rest of this burst fixed instances.
 
 **Reviewed at:** `c814880` (dev), 2026-11-23 UTC.
 
-## C9 - OPEN. A correction stops reading as a reversal after a page reload.
+## C9 - SUPERSEDED: CLOSED by `95ba46b`. See round 7.
+
+> **Status at the time of writing was OPEN; it is CLOSED.** This section was written at
+> `c814880`; nia's fix landed immediately after as `95ba46b`. The finding below is kept for the
+> record of what was observed, not as a live item. **Do not read this heading as open work.**
+
+### (as written) A correction stops reading as a reversal after a page reload.
 
 Raised by nia in her closing rows; **verified here against a real `ledgerd` + real SQLite**,
 not taken on report:
@@ -641,12 +647,18 @@ and shipping with it recorded is a defensible call that I am not making unilater
 
 **Reviewed at:** `95ba46b`+ (dev), 2026-11-23 UTC.
 
-## C9 - CLOSED
+## C9 - CLOSED by `95ba46b`, entirely within `web/**`
 
 nia fixed it at `95ba46b` **without an API change**, which is the better fix than the one I
 pointed at. `core.reversalID` derives the compensating transfer's id as `rev_<original
 transfer id>`, and `transfer_id` is already on every statement row - so both link directions
 are recoverable from the page itself, and survive a reload.
+
+**Scope of the fix, confirmed:** `95ba46b` is two files - `web/src/views/reversalIndex.ts`
+and `reversalIndex.test.ts`. **No API change, and neither amara's nor dakari's scope was
+touched.** My round 6 framing - that a fix would span `api/` and likely `core/` and would need
+routing - was wrong about both the span and the need. nia solved it inside her own stream from
+data already on the page. No builder needed recalling, and none was recalled.
 
 Verified two independent ways, neither on report:
 
@@ -757,3 +769,33 @@ stood down, and amara's grant was lifted for a finding now closed. Routed to the
 
 **Verdict unchanged: APPROVE-WITH-CONDITIONS.** C1-C9 closed; conditions 1 and 2 closed;
 condition 3 open, non-blocking, now stated accurately.
+
+---
+
+# Review round 9 - C9 re-verified at current HEAD
+
+**Re-verified at `d3fe0b6` (dev HEAD) on Orchestrator instruction.** **C9 is CLOSED by
+`95ba46b`.** Evidence at this HEAD, not inherited:
+
+- `bun run test` - **73/73 green**, `reversalIndex.test.ts` **24 tests**.
+- `reversalIndex.test.ts:45-62` carries the reload case exactly: both link directions derived
+  **with no server fields**, plus `"withholds Reverse on the reversed original after a reload"`.
+- Live against a real `ledgerd`: the statement still emits neither link field, and the
+  compensating posting carries `transfer_id = rev_xfer_000001a209dc7096c28dab028606a71d`,
+  stripping to exactly the original transfer. The link is derivable from the page alone.
+- `git show --stat 95ba46b` - two files, both `web/`. **No API change; no `core/`, no `api/`.**
+
+**Correcting my round 6 disposition.** I recorded C9 as open and spanning `api/` plus likely
+`core/`, needing Orchestrator routing. Both halves were wrong: the fix was one stream's, and it
+needed no contract change. Round 6's heading now carries a superseded marker so it cannot be
+read as live work.
+
+**No builder was recalled**, and none will be on my account. My messages to amara and dakari
+reported findings and verification; neither asked for work, and condition 3 was explicitly left
+unwritten and routed rather than pushed back onto a stood-down stream.
+
+**Condition 3 remains open and is a separate item from C9** - the unpinned `rev_` literal across
+four sites. It is non-blocking and routed; it does not qualify C9's closure.
+
+**Verdict: APPROVE-WITH-CONDITIONS.** C1-C9 closed. Conditions 1 and 2 closed. Condition 3 open,
+non-blocking.
