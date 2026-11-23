@@ -30,10 +30,22 @@
 --   settle  UPDATE reversal_transfer_id and settled_at once the compensating transfer has
 --           committed.
 --
--- core exposes no Tx.InsertReversal, so claim and settle cannot yet share one write
--- transaction with the posting. That seam belongs to the core owner and is reported, not
--- taken here (see AIGILE_PLAN round_1/plan.md, Alternatives). Two phases are correct
--- without it: the claim is what excludes the second reverser, and it commits first.
+-- STATUS: THIS TABLE IS DELIBERATELY UNWIRED (Orchestrator decision, burst `reversals`).
+-- Nothing in core, api, internal or cmd reads or writes it; tests/reversals_test.go is its
+-- only consumer. Production reverses an entry by DERIVING the compensating entry's id as
+-- `rev_<entryID>`, which puts "at most one reversal per entry" on the transfers PRIMARY
+-- KEY inside core.Reverse's single write transaction -- no schema change, and no second
+-- schema source to drift.
+--
+-- It is kept rather than deleted ON PURPOSE. The schemas staying APART is exactly what
+-- tests/bootpath_test.go detects drift on: that guard boots the real cmd/ledgerd and
+-- fails closed if the server is serving the adapter's embeddedSchema instead of the
+-- migrations, which is how collision-v2 shipped the GET /currencies 500. Wiring this
+-- table would cost the guard its signal.
+--
+-- So DO NOT "fix" the unwired table by giving it a writer without first deciding what
+-- replaces the boot-path guard. Removing the duplication is a live Orchestrator flag:
+-- the repo currently enforces one invariant twice, here and on the transfers PK.
 
 CREATE TABLE IF NOT EXISTS reversals (
   id                   TEXT PRIMARY KEY,

@@ -23,11 +23,25 @@ import (
 
 // --- the reversal operation, claim then settle -----------------------------------
 //
-// core exposes no Reverse seam and no Tx.InsertReversal, so the link cannot yet be
-// written inside core's write transaction (reported to the core owner; see the plan
-// record's Alternatives). These helpers model the operation at the level this stream
-// owns: take the claim, which is what excludes every other reverser, then post the
-// compensating transfer through the existing core.Ledger.Transfer, then settle.
+// THESE HELPERS ARE NOT THE PRODUCTION CONTRACT. Read `core.Reverse` for that.
+//
+// Production reverses an entry by DERIVING the compensating entry's id as
+// `rev_<entryID>`, so "at most one reversal per entry" falls out of the transfers
+// PRIMARY KEY, inside core's single write transaction, with no schema change and no
+// second schema source. The `reversals` table these helpers drive is deliberately
+// UNWIRED by Orchestrator decision: nothing in core, api, internal or cmd reads or
+// writes it. It is kept because keeping the two schemas APART is precisely what
+// tests/bootpath_test.go detects drift on -- wiring the table would cost that guard.
+//
+// So what these helpers prove is narrower than it looks, and worth being exact about:
+// they prove the GUARANTEE 0004 carries is real and enforced by the database -- that a
+// UNIQUE constraint, not a Go branch, is what survives 32 racing goroutines. They do
+// not describe how the running system reverses anything.
+//
+// The claim-then-settle shape exists because this stream owns no seam inside core's
+// write transaction: take the claim (which excludes every other reverser), post the
+// compensating transfer through core.Ledger.Transfer, then settle. core.Reverse needs
+// none of that -- it has one transaction and therefore no window between the two.
 
 // isUniqueViolation reports whether err is a UNIQUE/PRIMARY KEY constraint refusal --
 // an INVARIANT outcome (someone else reversed this entry first), never infrastructure.
@@ -112,11 +126,15 @@ func releaseClaim(ctx context.Context, db *sql.DB, claimID string) error {
 //     is strictly worse than a link row that is correct about the block but missing its
 //     pointer.
 //
-// This closes the caller half of the liveness defect. It does NOT close all of it: a crash
-// between the claim's commit and the release still orphans the claim, and no sweep exists
-// to collect one. Only a `core.Reverse` / `Tx.InsertReversal` seam writing the claim and
-// the postings in ONE transaction removes that window, and `core` is not this stream's
-// scope. Reported to the core owner.
+// This closes the caller half of the liveness defect (zola's C5). It does NOT close all of
+// it: a crash between the claim's commit and the release still orphans the claim, and no
+// sweep collects one. Two transactions always leave that window.
+//
+// Production does not have the defect at all. `core.Reverse` carries the already-reversed
+// check, the R4 replay, the R7/R3 checks and the InsertTransfer inside a SINGLE
+// `store.InTx`, so there is no second transaction to crash between -- verified against
+// core/reversal.go, which has exactly one InTx. The window below is a property of this
+// test helper, not of the system.
 func reverse(ctx context.Context, db *sql.DB, l core.Ledger, t core.Transfer, claimID, idemKey string) (won bool, err error) {
 	won, err = claimReversal(ctx, db, claimID, t.ID, t.Owner)
 	if err != nil || !won {
