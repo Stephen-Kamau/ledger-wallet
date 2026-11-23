@@ -18,9 +18,9 @@
     "name": "Amara Okeyo",
     "email": "amara@ledger.test"
   },
-  "status": "in-flight",
+  "status": "finalised",
   "started_at": "2026-11-23T12:41:13Z",
-  "finalised_at": null,
+  "finalised_at": "2026-11-23T20:06:39Z",
   "primary_usage": null,
   "phases": [
     {
@@ -99,5 +99,13 @@
     "harvest": "unavailable",
     "reason": "no main-thread transcripts found for this harness",
     "skills": {}
+  },
+  "stream_reconciliation": {
+    "recorded_at": "2026-11-23T20:06:39Z",
+    "plan_source": "AIGILE_PLAN/closed/2026-11-23-reversals-911c6a7/round_1/plan.md",
+    "plan_unavailable_reason": null,
+    "plan_streams": [],
+    "manifest_streams": [],
+    "differences": []
   }
 }
