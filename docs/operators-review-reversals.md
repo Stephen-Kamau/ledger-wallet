@@ -279,3 +279,74 @@ Both web findings are closed and closed properly. The burst still cannot ship:
   nia's copy now tells the truth about that dead end - it does not remove it.
 - **C3.** `POST /entries/{id}/reverse` still does not exist. The mandatory live e2e has
   still never run.
+
+---
+
+# Review round 4 - amara's `core.Reverse`, kofi's C5 response
+
+**Reviewed at:** `37c66fa` (dev), 2026-11-23 UTC. Streams landed: nia, kofi, amara.
+**dakari: claim and plan only, no code.**
+
+| Check | Result |
+|---|---|
+| `go build ./...` / `go vet ./...` | clean |
+| `go test ./... -race` (full suite) | **green**, exit 0 (`tests` 449s) |
+| `bun run test` (web) | **green**, 65/65 |
+| Live e2e vs booted `ledgerd` | **all pass**, conservation holds after amara's core refactor |
+| `gofmt -l` | **`api/fakes_test.go` unformatted** |
+| Merge integrity | clean rebase; zola/nia/kofi/amara/dakari rows all intact |
+
+## C5 - RESOLVED in production
+
+amara's `core.Reverse` derives the compensating entry's id as `rev_<entryID>`, so "at most one
+reversal per entry" falls out of the `transfers` PRIMARY KEY **inside a single write
+transaction**. I verified the single-transaction claim rather than accepting it:
+`grep -c InTx core/reversal.go` is **1**. There is no claim row and therefore nothing to
+strand - the defect is designed out, not patched. A failed compensation rolls back whole and
+the entry stays reversible.
+
+kofi also closed the caller half in the test helper (`releaseClaim`, released when the
+compensating transfer did not post, **kept** when it posted but the link failed to settle -
+correctly asymmetric), and is explicit that a crash between claim commit and release still
+orphans a claim with no sweep. That residual is a property of the **test helper**, not of the
+running system, and kofi says so. Accepted as closed.
+
+Good cross-stream behaviour worth recording: amara renamed the not-found code to
+`entry_not_found` to match nia's already-shipped UI map, rather than making nia chase it.
+
+## C6 - NEW, BLOCKING. The required typed 409 will be emitted as a 500.
+
+`core/errors.go` defines `ErrAlreadyReversed` (`already_reversed`) and `ErrEntryNotFound`
+(`entry_not_found`). **Neither appears in `api/errors.go`'s `coreErrorMap`** - verified by
+grep. `writeCoreErr` (`api/errors.go:91-100`) falls through to
+`500 internal` for any unmapped core error.
+
+So the moment a handler calls `core.Reverse`:
+
+- a double-reverse returns **500**, not the **409** the burst brief requires;
+- an unknown entry returns **500**, not **404**.
+
+It compounds across streams: nia's UI routes `internal` to `unconfirmedOutcome` - *"We cannot
+confirm whether this entry was reversed"* - which is maximum uncertainty for the one case the
+ledger knows with certainty. The honest 409 copy nia already wrote
+(`already_reversed`: "the correction is already on this statement") would never be reached.
+
+Latent today because no handler exists. **Raised now because the fix is two rows in
+`coreErrorMap`, and it is cheapest before dakari writes the handler rather than after.**
+
+## C7 - NEW, minor. `api/fakes_test.go` fails gofmt.
+
+`19c2083` (amara) added `Reverse` to `fakeLedger` and left the struct field block
+misaligned. Repo standard is gofmt. One command.
+
+## C3 - still open, still blocking
+
+**There is no HTTP route.** `POST /entries/{id}/reverse` does not exist anywhere in `api/` or
+`cmd/`. `core.Reverse` is complete and tested; nothing exposes it. nia's UI 404s, and the
+mandatory live reversal e2e (reverse / idempotent replay / 409 / 403) **has still never run**.
+
+## Burst verdict: REQUEST_CHANGES
+
+Every landed stream passes on its own scope. The burst does not ship: C3 leaves the
+reversal path unreachable and unverified end to end, and C6 means the typed 409 the brief
+requires is wired to produce a 500 the moment the path opens.
