@@ -4,9 +4,9 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 ## Current state
 
-**Phase:** Promoting
-**Active burst:** reversals
-**Burst base:** 911c6a70f8ca57b8cfd3bc6493b27f43a02f51d0
+**Phase:** Idle
+**Active burst:** None
+**Burst base:** None
 
 <!-- WHY THIS CLONE'S PAIR NAMES ONLY amara (AGV-328/329).                           -->
 <!-- AIGILE_PLAN/current/bursts/ holds FOUR stores, one per operator clone, because   -->
@@ -42,7 +42,7 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 <!-- committed under .aigile/manifests/ and remains the record of what was claimed.   -->
 <!-- kofi hit the same thing: a claim's base SHA does not survive a rebase.           -->
 **Plan reference:** None
-**Next action:** Run probe retrospective then /ag-ship to ship reversals (amara stream)
+**Next action:** Burst complete - reversals closed across all four streams; dev->main promotion outstanding and is the Orchestrator's call
 **Last updated:** [YYYY-MM-DD]
 
 <!-- Next action is the forward pointer for resume-on-/clear. Every phase  -->
@@ -75,7 +75,6 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 <!-- ### Codex invocation for the full rule.                               -->
 
 **Burst id:** a1bd5f528ac875670d574084d0c7c8ecc5500b51
-**Planning started:** 2026-11-23T12:41:13Z
 
 <!-- Concurrent operators in burst `reversals`. STATUS carries ONE active burst id,   -->
 <!-- so this pointer is necessarily last-writer; the superseded ids are recorded here -->
