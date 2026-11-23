@@ -634,3 +634,69 @@ deferred. The burst's goal was reversal, a correction that does not read as a co
 a reload is the feature only half-delivered, and the fix is a known contract addition to a
 response shape two streams already understand. But it is a deliverable gap, not a safety one,
 and shipping with it recorded is a defensible call that I am not making unilaterally.
+
+---
+
+# Review round 7 - C9 closed; the `rev_` convention is now duplicated three ways
+
+**Reviewed at:** `95ba46b`+ (dev), 2026-11-23 UTC.
+
+## C9 - CLOSED
+
+nia fixed it at `95ba46b` **without an API change**, which is the better fix than the one I
+pointed at. `core.reversalID` derives the compensating transfer's id as `rev_<original
+transfer id>`, and `transfer_id` is already on every statement row - so both link directions
+are recoverable from the page itself, and survive a reload.
+
+Verified two independent ways, neither on report:
+
+- **Mine, at the data level.** Against a real `ledgerd`, after a reversal, the statement still
+  emits no link fields - but the compensating posting carries
+  `transfer_id = rev_xfer_000001a209d727c3b2df71b64ea8e96e`, which strips to exactly the
+  original transfer. The link is **derivable from statement data alone**.
+- **amara's, in the browser, and falsified.** Reload-inclusive Playwright check against a real
+  `ledgerd` with the stub **disabled**: post-fix `reversed=1 reversal=1 captions=2` both before
+  and after reload; against the **pre-fix** module on a fresh seed the same script went to
+  `0/0/0` on reload - C9 exactly. A check that was shown to fail on the broken code, which is
+  what makes it a guard rather than a ritual.
+
+amara also built the same fix in parallel under a grant of `web/**` and **dropped it** in
+favour of nia's, on the grounds that nia's matches the counterpart leg per account where
+amara's took the first posting with that `transfer_id`, and nia's 9 tests are a superset of
+amara's 7. Recorded because choosing a peer's better implementation over your own written work
+is the behaviour this review should be naming when it happens.
+
+## Condition 3 - NEW, non-blocking. The `rev_` prefix is a cross-language literal with nothing binding it.
+
+The fix works by having the web layer know a convention that `core` owns. `rev_` now exists in
+**three** places:
+
+| Location | Role |
+|---|---|
+| `core/reversal.go:18` | `const reversalPrefix = "rev_"` - the source of truth |
+| `core/reversal_test.go:314` | `res.Transfer.ID != "rev_"+orig.ID` - a copied literal |
+| `web/src/views/reversalIndex.ts:59` | `const REVERSAL_ID_PREFIX = "rev_"` - a copied literal |
+
+**Nothing pins them together.** Demonstrated by mutation: changing `reversalPrefix` to
+`"reversal_"` fails exactly one test - `TestReverse_AcceptsAPostingIDOfTheEntry` - and that test
+fails because **it hardcodes the literal too**, not because it guards the contract. The web
+suite stays **73/73 green**, because its fixtures spell `rev_` themselves.
+
+So the live drift path is: a developer changes the prefix in `core`, sees one Go test fail,
+fixes that test's literal (the obvious move), and ships. Production's statement links silently
+stop resolving, with every Go and web test green. That is the **fourth** instance in this burst
+of a cross-layer convention that nothing enforces - after C8, the overlay keying, and the stub
+injection - and the same silent shape each time.
+
+This is a residual of an otherwise better fix, not a reason to reopen C9. The cheapest honest
+pin is a contract test that reads the constant from `core` and asserts the TypeScript literal
+matches, failing loudly on drift.
+
+**Not written.** It spans `core/` and `web/**`, both operators stood down, and I already wrote
+once outside `docs/` this burst on explicit instruction. Offering rather than assuming.
+
+## Burst verdict: APPROVE-WITH-CONDITIONS
+
+C1-C9 all closed. Conditions 1 and 2 closed. Condition 3 open, non-blocking, with a named fix.
+The money path is correct, verified live end to end, and conserves value; the reversal UX
+deliverable is now met across a reload.
