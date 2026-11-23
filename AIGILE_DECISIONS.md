@@ -100,3 +100,36 @@ Verdict APPROVE-WITH-CONDITIONS. Dispositions (coordinator):
   independently — 5 WARNs, 4 of them dead claims from shipped bursts, one kofi's own — and filed
   it as **AGV-396** in canonical. A guard that always warns is a guard nobody reads; the fix is
   to finalise claims at ship and sweep the existing six. Tracked in canonical, not here.
+
+---
+
+## D-A1 — Ship `reversals` (amara stream) on D-Z1, without refreezing the Reviewer profile
+
+**Date:** 2026-11-23 · **Decided by:** Orchestrator ("ship it on D-Z1") · **Scope:** this burst only
+
+**The gate that refuses.** `ag-gate ship-preflight` exits 31 for this burst: the manifest
+records no route-bound governance invocation. It cannot be made to, because
+`ag-resolve-role --json Reviewer` returns `state: PROFILE_STALE` (profile `codex-opencode`)
+with **no `route_token` field at all**, and `record-governance-invocation` requires one.
+
+**Options put to the Orchestrator, and the one taken.**
+
+- *Refreeze* — `ag-driver profile refreeze Reviewer` records a new route in the manifest and
+  the gate then passes. **Declined.** The staleness follows the canonical install moving
+  16.21 → 16.23 during this session, not an intended seat edit, so refreezing would make the
+  manifest name a route that never ran — buying a green gate with a false record.
+- *Ship on D-Z1* — **taken.** Independence was already accepted on a recorded factual basis
+  in D-Z1, and the property the gate protects is verified true rather than attested:
+  `ag_claims.check_independence` over every claim event in this clone returns **zola PASS**
+  (holds no claim) and **BLOCK for all four builders** (amara, dakari, kofi, nia). zola is
+  the only eligible reviewer of this burst and reviewed it across 8 rounds.
+
+**What this exception does NOT do.** It does not make `ship-preflight` pass — the refusal
+stands and `/ag-ship` proceeds over a recorded exception, never a silent bypass. It does not
+resolve the Reviewer seat, so the next burst inherits `PROFILE_STALE` and must decide again.
+It is scoped to this burst, exactly as D-Z1 was.
+
+**Standing recommendation.** Resolve the profile staleness while Idle (`ag-init` reselect),
+not mid-burst. Two accepted-on-facts exceptions in one burst (D-Z1 for independence, D-A1 for
+its recording) is the pattern `### A control must earn its keep` says to look at: the control
+is not enforcing, it is being routed around on judgement each time.

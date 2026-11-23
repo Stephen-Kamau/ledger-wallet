@@ -46,6 +46,30 @@
       },
       "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
       "managed_block_state": "present"
+    },
+    {
+      "name": "Piloting",
+      "entered_at": "2026-11-23T19:53:41Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.21",
+        "source_commit": "950b3759db5ebee67009dc7332efad447cf1e8f1",
+        "dirty": 0
+      },
+      "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+      "managed_block_state": "present"
+    },
+    {
+      "name": "Promoting",
+      "entered_at": "2026-11-23T19:54:28Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.21",
+        "source_commit": "950b3759db5ebee67009dc7332efad447cf1e8f1",
+        "dirty": 0
+      },
+      "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+      "managed_block_state": "present"
     }
   ],
   "streams": [],

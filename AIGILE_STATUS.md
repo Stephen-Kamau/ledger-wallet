@@ -4,7 +4,7 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 ## Current state
 
-**Phase:** Probing
+**Phase:** Promoting
 **Active burst:** reversals
 **Burst base:** 911c6a70f8ca57b8cfd3bc6493b27f43a02f51d0
 
@@ -42,7 +42,7 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 <!-- committed under .aigile/manifests/ and remains the record of what was claimed.   -->
 <!-- kofi hit the same thing: a claim's base SHA does not survive a rebase.           -->
 **Plan reference:** None
-**Next action:** Probing reversals (amara stream): tests, review, steer
+**Next action:** Run probe retrospective then /ag-ship to ship reversals (amara stream)
 **Last updated:** [YYYY-MM-DD]
 
 <!-- Next action is the forward pointer for resume-on-/clear. Every phase  -->

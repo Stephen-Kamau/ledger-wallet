@@ -71,3 +71,13 @@ that would have required `embeddedSchema` to learn `reversals` and so deleted th
 Redirected me from reporting to unblocking a peer. Checking my error codes against nia's
 shipped UI for dakari's benefit is what found the `transfer_not_found` vs `entry_not_found`
 seam defect - before dakari built on it.
+
+## 2026-11-23T19:54:11Z | round_1 | direction
+
+"ship it on D-Z1" - in answer to the one steer decision: refreeze the Reviewer profile so
+`ship-preflight` passes, or ship on the already-granted D-Z1 with the refusal recorded.
+
+Chose the second, which is the harder of the two to defend and the right one. Refreezing
+would have bought a green gate by recording a route that never ran. Shipping on D-Z1 keeps
+the manifest honest and makes the refusal visible as a named exception (D-A1) instead of a
+passing check nobody would look at again.
