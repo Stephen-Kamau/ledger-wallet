@@ -4,7 +4,7 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 ## Current state
 
-**Phase:** Producing
+**Phase:** Planning
 **Active burst:** None
 **Burst base:** 29bfb97ef68b929a66b087a18db0572bc1919ada
 **Plan reference:** None
@@ -40,15 +40,16 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 <!-- when an in-session rescue thread may already exist. See AIGILE_RULES  -->
 <!-- ### Codex invocation for the full rule.                               -->
 
-**Burst id:** 58487fc04e63b14d4067564b4902dad8da2d0238
-**Planning started:** 2026-11-23T12:46:55Z
+**Burst id:** f565fc1d330f0ff8a3324a7dfa11f370f4ead547
+**Planning started:** 2026-11-23T12:46:05Z
 
 <!-- Concurrent operators in burst `reversals`. STATUS carries ONE active burst id,   -->
 <!-- so this pointer is necessarily last-writer; the superseded ids are recorded here -->
 <!-- rather than erased. Each operator's full plan record and signed manifest survive -->
 <!-- intact under AIGILE_PLAN/current/bursts/<burst-id>/ and .aigile/manifests/.      -->
-<!--   nia  5ec0edc10d933a51b167ce5293af1a9ef75c7de8  planning started 12:44:21Z      -->
-<!--   kofi 58487fc04e63b14d4067564b4902dad8da2d0238  planning started 12:46:55Z      -->
+<!--   nia    5ec0edc10d933a51b167ce5293af1a9ef75c7de8  planning started 12:44:21Z    -->
+<!--   kofi   58487fc04e63b14d4067564b4902dad8da2d0238  planning started 12:46:55Z    -->
+<!--   dakari f565fc1d330f0ff8a3324a7dfa11f370f4ead547  planning started 12:46:05Z    -->
 ## Active streams
 
 None.
