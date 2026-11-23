@@ -367,7 +367,7 @@ func TestReverse_RealAdapter_ResolvesAPostingID(t *testing.T) {
 			if err != nil {
 				t.Fatalf("reverse by posting id: %v", err)
 			}
-			if res.Transfer.ID != "rev_"+orig.ID {
+			if res.Transfer.ID != core.ReversalPrefix+orig.ID {
 				t.Fatalf("reversal %s not derived from entry %s", res.Transfer.ID, orig.ID)
 			}
 

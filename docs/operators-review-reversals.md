@@ -847,3 +847,65 @@ question production never asked them.
 
 Condition 3 is the one instance still open. It is the cheapest of the four to fix and the only
 one left where the next drift would be silent.
+
+---
+
+# Condition 3 - CLOSED
+
+Taken on Orchestrator instruction after the builders stood down. The fix has two halves,
+because the four sites are not one problem.
+
+## The three Go sites now READ the constant
+
+`core.reversalPrefix` is **exported as `core.ReversalPrefix`**, because it is a published
+contract rather than an internal detail: the web layer depends on its value to recover
+statement links. Leaving it unexported was what forced `internal/sqlite/reversal_test.go`
+(package `sqlite_test`) to restate it as a literal in the first place.
+
+| Site | Before | After |
+|---|---|---|
+| `core/reversal.go:26` | `const reversalPrefix` | `const ReversalPrefix` - source of truth |
+| `core/reversal_test.go:314` | `"rev_"+orig.ID` | `ReversalPrefix+orig.ID` (package `core`) |
+| `internal/sqlite/reversal_test.go:370` | `"rev_"+orig.ID` | `core.ReversalPrefix+orig.ID` |
+
+## The cross-language half: `tests/reversal_contract_test.go`
+
+A new test comparing the two languages to each other - the only one of the four that
+**cannot be satisfied by editing a literal**. It reads
+`web/src/views/reversalIndex.ts`, extracts `REVERSAL_ID_PREFIX`, and asserts it equals
+`core.ReversalPrefix`.
+
+It **fails closed**: if the declaration cannot be found - renamed, reformatted, deleted, file
+moved - that is a failure, not a skip. A contract test that quietly passes when it can no
+longer see its subject is precisely the decoration this was written to replace.
+
+## Mutation-verified three ways, and the failure moved to the right place
+
+| Mutation | Before condition 3 | After |
+|---|---|---|
+| `core` prefix -> `"reversal_"` | 2 Go tests fail, **both for the wrong reason** (they hardcoded the literal); web 73/73 green | `core` and `internal/sqlite` **PASS**; only `TestReversalPrefix_WebAndCoreAgree` fails, naming both values and the user-visible consequence |
+| web literal -> `"reversal_"` | **nothing fails anywhere** | contract test fails |
+| web constant renamed away | **nothing fails anywhere** | contract test fails closed |
+
+The first row is the whole point. Before, two tests failed and a developer fixing both
+literals would see green and ship a broken statement link. Now those two tests pass under the
+mutation - correctly, because they read the constant - and the one test that should fail does,
+with a message naming the drift.
+
+The second and third rows closed a gap I had not stated: drift *from the web side*, and removal
+of the constant, previously had **no detection at all** in either language.
+
+## Evidence
+
+`go build`, `go vet`, `gofmt -l` clean. Full `go test ./... -race` green. Web **73/73**
+unchanged - the fix pins web behaviour without altering it. All three mutations applied, run
+and reverted; working tree verified back to zero diff on the mutated files each time.
+
+**Scope:** `core/`, `internal/sqlite/` and `tests/` are amara's and kofi's claimed scopes, and
+mine is `docs/`. Written on explicit Orchestrator instruction with both operators stood down,
+and recorded here and in the activity log as an out-of-scope write by the reviewer - the same
+disclosure I applied to `core/id_test.go`, and the same one I would expect of anyone else.
+
+## Burst `reversals`: all findings and all conditions closed
+
+C1-C9 closed. Conditions 1, 2 and 3 closed. Verdict **APPROVE**.

@@ -2,8 +2,8 @@ package core
 
 import "context"
 
-// reversalPrefix tags the DERIVED id of a compensating entry. The reversal of
-// transfer X is always written with id reversalPrefix+X, which makes "has this
+// ReversalPrefix tags the DERIVED id of a compensating entry. The reversal of
+// transfer X is always written with id ReversalPrefix+X, which makes "has this
 // entry already been reversed?" a primary-key lookup rather than a scan, and makes
 // "at most one reversal per entry" an invariant the STORAGE enforces: the second
 // insert collides on the transfers primary key even if two writers somehow raced
@@ -15,13 +15,21 @@ import "context"
 // the defect collision-v2 shipped (the currencies table lived only in migrations/,
 // so the server booted without it while every unit test stayed green). No column,
 // no second schema source, no drift.
-const reversalPrefix = "rev_"
+//
+// EXPORTED because it is a PUBLISHED contract, not an internal detail. The web layer
+// recovers both link directions on a statement by stripping this prefix from
+// `transfer_id` (web/src/views/reversalIndex.ts), since the statement projection emits
+// no explicit link fields. That made the prefix a cross-layer convention while it was
+// still spelled as a literal in four places with nothing binding them - change it here
+// and the web link silently stopped resolving with every Go and web test green.
+// tests/reversal_contract_test.go now pins the TypeScript constant to this one.
+const ReversalPrefix = "rev_"
 
 // reversalID is the derived id of the compensating entry for entryID. Applying it
 // to a reversal's own id is how reversing a reversal works: that is a DISTINCT
 // entry and a legitimate correction of a correction, so it is allowed, while a
 // second reversal of the SAME entry collides and is refused.
-func reversalID(entryID string) string { return reversalPrefix + entryID }
+func reversalID(entryID string) string { return ReversalPrefix + entryID }
 
 // Reverse posts a compensating entry that mirrors entryID's postings (R5).
 //
@@ -188,7 +196,7 @@ func assertBalanced(entries []Entry) error {
 }
 
 // materialiseReversal builds the compensating Transfer. Its id is derived from the
-// original (see reversalPrefix); its direction is the original's reversed, so the
+// original (see ReversalPrefix); its direction is the original's reversed, so the
 // record reads naturally as "To paid From back". Posting.Seq is left zero: the
 // adapter assigns it under the write lock (D-B1).
 func (l *ledger) materialiseReversal(original Transfer, authorizer PrincipalID, key string, entries []Entry) Transfer {

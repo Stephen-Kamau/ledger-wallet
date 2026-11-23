@@ -311,7 +311,7 @@ func TestReverse_AcceptsAPostingIDOfTheEntry(t *testing.T) {
 	}
 	// And it is the SAME compensating entry a transfer id would have produced, so the
 	// at-most-one-reversal guarantee is keyed per entry, not per id spelling.
-	if res.Transfer.ID != "rev_"+orig.ID {
+	if res.Transfer.ID != ReversalPrefix+orig.ID {
 		t.Fatalf("reversal id %s is not derived from the entry %s", res.Transfer.ID, orig.ID)
 	}
 }
