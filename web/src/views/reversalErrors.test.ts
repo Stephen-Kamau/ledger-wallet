@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "../api/types";
 import {
-  canonicalReversalCode,
   mapReversalError,
   unconfirmedOutcome,
-  REVERSAL_CODE_ALIASES,
   REVERSAL_ERRORS,
   REVERSAL_REACHABLE_CODES,
 } from "./reversalErrors";
@@ -17,13 +15,6 @@ describe("reversal error map — fail-closed coverage", () => {
   it("maps every reversal-reachable code (none falls to the generic bucket)", () => {
     for (const code of REVERSAL_REACHABLE_CODES) {
       expect(REVERSAL_ERRORS[code], `missing mapping for ${code}`).toBeDefined();
-    }
-  });
-
-  it("every alias resolves to a code that is actually mapped", () => {
-    for (const [alias, canonical] of Object.entries(REVERSAL_CODE_ALIASES)) {
-      expect(canonicalReversalCode(alias)).toBe(canonical);
-      expect(REVERSAL_ERRORS[canonical], `alias ${alias} -> unmapped ${canonical}`).toBeDefined();
     }
   });
 
@@ -144,7 +135,7 @@ describe("reversal copy differs from transfer copy where the meaning differs", (
       "unbalanced",
       "account_not_found",
     ]) {
-      expect(REVERSAL_ERRORS[canonicalReversalCode(code)], code).toBeDefined();
+      expect(REVERSAL_ERRORS[code], code).toBeDefined();
     }
   });
 
@@ -153,11 +144,14 @@ describe("reversal copy differs from transfer copy where the meaning differs", (
     expect(m.message).toContain("No money moved");
   });
 
-  it("maps entry_not_found, and does NOT alias transfer_not_found onto it", () => {
-    // core emits entry_not_found. transfer_not_found is deliberately absent: an alias
-    // that silently absorbed a code core never sends would hide a real seam mismatch.
+  it("maps entry_not_found, and carries no alias for a code the server never sends", () => {
+    // api/errors.go:49-50 emits entry_not_found and already_reversed. Nothing maps
+    // transfer_not_found or entry_already_reversed: an alias absorbing a code the server
+    // never sends would hide the next seam mismatch instead of surfacing it.
     expect(REVERSAL_ERRORS["entry_not_found"]).toBeDefined();
-    expect(canonicalReversalCode("transfer_not_found")).toBe("transfer_not_found");
-    expect(REVERSAL_ERRORS[canonicalReversalCode("transfer_not_found")]).toBeUndefined();
+    expect(REVERSAL_ERRORS["already_reversed"]).toBeDefined();
+    for (const absent of ["transfer_not_found", "entry_already_reversed", "posting_not_found"]) {
+      expect(REVERSAL_ERRORS[absent], absent).toBeUndefined();
+    }
   });
 });

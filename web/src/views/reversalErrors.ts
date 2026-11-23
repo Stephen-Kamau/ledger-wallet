@@ -9,7 +9,16 @@
 // placements differ too (a row and a pane, not four fields and a form).
 //
 // Fail-closed: a reversal-reachable code with no row here is a failing test, not a
-// silent generic banner. reversalErrors.test.ts asserts coverage.
+// silent generic banner. reversalErrors.test.ts asserts coverage against the codes the
+// shipped endpoint actually emits (api/errors.go coreErrorMap).
+//
+// This map carries NO aliases, deliberately. While POST /entries/{id}/reverse was unbuilt
+// there was a hedge folding guessed spellings onto the canonical ones; the endpoint
+// shipped emitting exactly `already_reversed` and `entry_not_found` (api/errors.go:49-50,
+// confirmed against a live response), so the hedge had no consumer and went rather than
+// being left "in case". An alias that silently absorbed a code the server never sends
+// would hide the next seam mismatch, which is the opposite of fail-closed. The test pins
+// the absence.
 
 import type { ApiError } from "../api/types";
 
@@ -29,23 +38,6 @@ interface ReversalErrorSpec {
   msg: string;
   at: ReversalPlacement;
   action: ReversalAction;
-}
-
-// STUB CONTRACT HEDGE. dakari's endpoint is not on dev yet, so the exact spelling of
-// the already-reversed code is not yet fixed; the burst brief names the condition
-// ("409 already-reversed") but not the string. Canonical spelling is `already_reversed`;
-// the aliases below fold the other plausible spellings onto it so a naming near-miss
-// degrades to the right message instead of the generic bucket. DELETE the aliases once
-// `POST /entries/{id}/reverse` lands and the real code is read from api/errors.go.
-export const REVERSAL_CODE_ALIASES: Record<string, string> = {
-  entry_already_reversed: "already_reversed",
-  posting_already_reversed: "already_reversed",
-  entry_not_found: "entry_not_found",
-  posting_not_found: "entry_not_found",
-};
-
-export function canonicalReversalCode(code: string): string {
-  return REVERSAL_CODE_ALIASES[code] ?? code;
 }
 
 export const REVERSAL_ERRORS: Record<string, ReversalErrorSpec> = {
@@ -198,7 +190,7 @@ export function unconfirmedOutcome(requestId: string): MappedReversalError {
 // a server string is a developer's sentence, and the whole point of this map is that the
 // user reads ours.
 export function mapReversalError(e: ApiError): MappedReversalError {
-  const spec = REVERSAL_ERRORS[canonicalReversalCode(e.code)];
+  const spec = REVERSAL_ERRORS[e.code];
   if (spec === undefined) return unconfirmedOutcome(e.requestId);
   return {
     message: spec.msg,
