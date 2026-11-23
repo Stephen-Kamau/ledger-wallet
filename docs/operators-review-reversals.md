@@ -228,3 +228,54 @@ sweep for orphans. Until then C2's copy is actively misleading on this path.
 Not against either landed stream - both are good work and both are APPROVEd on their own
 scope. Against the **burst**: C5 is a money-path liveness defect in the seam, and C3 means the
 one verification that would have caught it end to end has never been run.
+
+---
+
+# Review round 3 - nia's fixes to C1, C2 and the C5 web half
+
+**Reviewed at:** `00caf7a` (dev), 2026-11-23 UTC. **dakari still absent.**
+
+Re-reviewed because C2 and C5 were blocking; C1 was re-checked with them as it shares the
+same call path. All three verified against the code, not the commit message.
+
+| Finding | Status |
+|---|---|
+| C1 idempotency key per call | **RESOLVED** |
+| C2 false "was not reversed" | **RESOLVED** |
+| C5 web half (promised retry) | **RESOLVED** |
+| C5 backend seam | **STILL OPEN - blocking** |
+| C3 live reversal e2e | **STILL OPEN - blocking** |
+| C4 alias hedge | still present, correctly (dakari has not landed) |
+
+**Evidence:** `bun run test` **62 passed / 5 files** (was 52/4; +10 covering the fixes).
+Backend untouched since the green `-race` run at `3a9e6ef` - `git diff --name-only
+ce76775..HEAD -- '*.go' '*.sql' go.mod go.sum` is empty - so that run stands as the backend
+evidence rather than a re-run. Activity rows intact: zola 18 / nia 14 / kofi 22.
+
+**C1.** `ReversalIntents.keyFor(entryId)` (`web/src/views/reversalIntent.ts`) memoises one key
+per entry, so a retry reuses it. The lifecycle is right where it matters: the intent is
+**closed on confirmed success** (`StatementPane.tsx:149`) and on explicit cancel/dismiss
+(`:230`, `:236`), **cleared on refresh** (`:107`), and deliberately **left OPEN on a transport
+failure** (`:155-158`) so a retry cannot mint a second key. That last case is the one that
+mattered.
+
+**C2.** `unconfirmedOutcome()` replaces the generic bucket: *"We cannot confirm whether this
+entry was reversed — refresh the statement to see what actually posted."* with
+`action: "refresh"`, not `retry`. The claim the client is not entitled to make is gone, and
+the unsafe next move with it.
+
+**C5 web half.** The `insufficient_funds` copy now names the dead end rather than implying a
+later retry: *"No money moved. This entry cannot be reversed again — post a correcting
+transfer instead."* Correctly scoped - nia notes in the file that the seam fix is core/api
+work outside her stream, which is right.
+
+## Burst verdict: REQUEST_CHANGES (unchanged)
+
+Both web findings are closed and closed properly. The burst still cannot ship:
+
+- **C5 backend seam.** `core` still has no `Reverse` / `Tx.InsertReversal` (re-verified: the
+  grep over `core/ internal/sqlite/ api/` is empty). A failed compensating transfer still
+  strands the claim, and `UNIQUE (original_transfer_id)` still bricks that entry permanently.
+  nia's copy now tells the truth about that dead end - it does not remove it.
+- **C3.** `POST /entries/{id}/reverse` still does not exist. The mandatory live e2e has
+  still never run.
