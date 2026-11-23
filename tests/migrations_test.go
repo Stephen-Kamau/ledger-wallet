@@ -65,24 +65,39 @@ func TestR15_SchemaEvolved(t *testing.T) {
 }
 
 // TestR16_BootstrapParity proves a fresh DB built by the migrator is schema-identical and
-// seed-identical to a DB evolved step by step (0001, used, then 0002 later). Parity is a
-// claim about schema and seed, not transactional data -- the evolved DB's accounts and
-// postings are expected to differ and are excluded from the comparison (30-schema §3.3).
+// seed-identical to a DB evolved step by step (0001, used, then the rest applied later).
+// Parity is a claim about schema and seed, not transactional data -- the evolved DB's
+// accounts and postings are expected to differ and are excluded from the comparison
+// (30-schema §3.3).
+//
+// The evolved path walks migrations.Names() rather than a written-out list of filenames.
+// A hardcoded list is a copy of the subject that goes stale the moment a migration is
+// added: the new file would simply never be applied to the evolved DB, and the parity it
+// claims to prove would quietly stop covering it.
 func TestR16_BootstrapParity(t *testing.T) {
 	// Fresh: empty DB -> all migrations at once.
 	fresh := openMigrated(t, filepath.Join(t.TempDir(), "fresh.db"), true)
 
-	// Evolved: empty DB -> 0001 only, used, then 0002 applied later.
+	names, err := migrations.Names()
+	if err != nil {
+		t.Fatalf("R16: Names: %v", err)
+	}
+	if len(names) < 2 {
+		t.Fatalf("R16: parity needs at least two migrations to be a step-by-step claim, got %v", names)
+	}
+
+	// Evolved: empty DB -> 0001 only, USED, then every later migration one at a time.
 	evolved := openMigrated(t, filepath.Join(t.TempDir(), "evolved.db"), false)
-	if err := migrations.ApplyOne(evolved, "0001_init.sql"); err != nil {
-		t.Fatalf("apply 0001: %v", err)
-	}
-	runSomeTransfers(t, evolved) // exercise the v1 schema: accounts, transfers, postings
-	if err := migrations.ApplyOne(evolved, "0002_currencies.sql"); err != nil {
-		t.Fatalf("apply 0002: %v", err)
-	}
-	if err := migrations.ApplyOne(evolved, "0003_holds.sql"); err != nil {
-		t.Fatalf("apply 0003: %v", err)
+	for i, name := range names {
+		if err := migrations.ApplyOne(evolved, name); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+		if i == 0 {
+			// Exercise the v1 schema before evolving it: accounts, transfers, postings.
+			// Real data in the DB is what makes the later migrations a genuine evolution
+			// rather than a second fresh build.
+			runSomeTransfers(t, evolved)
+		}
 	}
 
 	if a, b := schemaOf(t, fresh), schemaOf(t, evolved); a != b {
