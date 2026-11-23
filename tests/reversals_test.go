@@ -3,6 +3,7 @@ package tests
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -80,10 +81,42 @@ func settleReversal(ctx context.Context, db *sql.DB, id, reversalTransferID stri
 	return err
 }
 
+// releaseClaim deletes an UNSETTLED claim, freeing the entry to be reversed again. The
+// 0004 trigger permits this for an open claim only; a settled reversal is append-only and
+// the DELETE is refused there.
+func releaseClaim(ctx context.Context, db *sql.DB, claimID string) error {
+	var err error
+	for attempt := 0; attempt < 50; attempt++ {
+		_, err = db.ExecContext(ctx, `DELETE FROM reversals WHERE id = ?`, claimID)
+		if !isInfraBusy(err) {
+			return err
+		}
+	}
+	return err
+}
+
 // reverse is the whole operation: claim, post the compensating transfer, settle. It
 // returns won=false when another caller held the claim. The idempotency key is the
 // CALLER's, deliberately distinct per goroutine, so R4 cannot stand in for the 0004
 // constraint.
+//
+// ONCE THE CLAIM COMMITS IT HOLDS THE ENTRY, so every path out of this function has to
+// decide whether to keep it or release it, and the two cases are NOT symmetric:
+//
+//   - the compensating transfer did NOT post -> RELEASE. No money moved, so holding the
+//     claim buys nothing and `UNIQUE (original_transfer_id)` would brick the entry
+//     permanently. `insufficient_funds` here is the ordinary case, not an exotic one: the
+//     destination has already spent what it received.
+//   - the compensating transfer DID post -> KEEP, even if settling the link then fails.
+//     Releasing would let the entry be reversed a second time and move money twice, which
+//     is strictly worse than a link row that is correct about the block but missing its
+//     pointer.
+//
+// This closes the caller half of the liveness defect. It does NOT close all of it: a crash
+// between the claim's commit and the release still orphans the claim, and no sweep exists
+// to collect one. Only a `core.Reverse` / `Tx.InsertReversal` seam writing the claim and
+// the postings in ONE transaction removes that window, and `core` is not this stream's
+// scope. Reported to the core owner.
 func reverse(ctx context.Context, db *sql.DB, l core.Ledger, t core.Transfer, claimID, idemKey string) (won bool, err error) {
 	won, err = claimReversal(ctx, db, claimID, t.ID, t.Owner)
 	if err != nil || !won {
@@ -92,18 +125,36 @@ func reverse(ctx context.Context, db *sql.DB, l core.Ledger, t core.Transfer, cl
 	// The compensating transfer is the original, backwards (R5: a correction is a new
 	// posting, never an edit). Authorised by the account being debited, which is the
 	// original's destination.
-	dest, err := l.GetAccount(ctx, t.To)
-	if err != nil {
-		return true, err
+	dest, gerr := l.GetAccount(ctx, t.To)
+	if gerr != nil {
+		return false, releasingClaim(ctx, db, claimID, gerr)
 	}
 	res, terr := transferRetryResult(ctx, l, core.TransferCmd{
 		Authorizer: dest.Owner, From: t.To, To: t.From,
 		Amount: t.Amount, Currency: t.Currency, IdempotencyKey: idemKey,
 	})
 	if terr != nil {
-		return true, terr
+		// Nothing posted. Hand the entry back.
+		return false, releasingClaim(ctx, db, claimID, terr)
 	}
-	return true, settleReversal(ctx, db, claimID, res.Transfer.ID)
+	if serr := settleReversal(ctx, db, claimID, res.Transfer.ID); serr != nil {
+		// The posting COMMITTED. Keep the claim: the entry really is reversed, and the
+		// block it imposes is correct even though the link is incomplete.
+		return true, fmt.Errorf("compensating transfer %s posted but its reversal link was "+
+			"not settled (the entry stays blocked, which is correct): %w", res.Transfer.ID, serr)
+	}
+	return true, nil
+}
+
+// releasingClaim releases a claim whose compensating transfer never posted and returns the
+// original failure. A release that itself fails is the one outcome that permanently bricks
+// the entry, so it is reported loudly rather than folded into cause.
+func releasingClaim(ctx context.Context, db *sql.DB, claimID string, cause error) error {
+	if rerr := releaseClaim(ctx, db, claimID); rerr != nil {
+		return fmt.Errorf("the compensating transfer failed (%v) AND releasing the claim "+
+			"failed (%v): this entry can no longer be reversed", cause, rerr)
+	}
+	return cause
 }
 
 // transferRetryResult is transferRetry's sibling for callers that need the resulting
@@ -420,5 +471,97 @@ func TestReversalConstraints_AreEnforcedByTheDatabase(t *testing.T) {
 	// The link is referential: it cannot name a transfer that does not exist.
 	if err := claim("ghost", "no-such-transfer"); err == nil {
 		t.Fatal("a reversal naming an unknown transfer must be refused by the foreign key")
+	}
+}
+
+// --- C5: a failed compensating transfer must not brick the entry ------------------
+
+// TestC5_FailedCompensatingTransfer_LeavesTheEntryReversible is the liveness property the
+// no-double-reversal guarantee can destroy if the caller is careless. Claim-then-settle
+// spans two transactions, so a claim can commit and the compensating transfer can then
+// fail -- and UNIQUE (original_transfer_id) would make that entry permanently
+// unreversible, which is a money-path defect, not an inconvenience.
+//
+// The failure exercised here is the ordinary one named in review: the destination has
+// already SPENT what it received, so the compensating debit hits R3 insufficient_funds.
+// The entry must survive that and still be reversible once the funds are back.
+func TestC5_FailedCompensatingTransfer_LeavesTheEntryReversible(t *testing.T) {
+	l, db := newLedger(t)
+	ctx := context.Background()
+	sys := newSystemAccount(t, l)
+	a := newAccount(t, l, "alice")
+	b := newAccount(t, l, "bob")
+	c := newAccount(t, l, "carol")
+
+	fund(t, l, sys, a, 100)
+	res, err := l.Transfer(ctx, core.TransferCmd{
+		Authorizer: "alice", From: a, To: b, Amount: 40, Currency: usd, IdempotencyKey: "entry",
+	})
+	if err != nil {
+		t.Fatalf("original transfer: %v", err)
+	}
+	original := res.Transfer
+
+	// Bob spends every unit he received, so the compensating debit cannot be afforded.
+	if _, err := l.Transfer(ctx, core.TransferCmd{
+		Authorizer: "bob", From: b, To: c, Amount: 40, Currency: usd, IdempotencyKey: "spent",
+	}); err != nil {
+		t.Fatalf("bob spends the funds: %v", err)
+	}
+	if got := balance(t, l, b); got != 0 {
+		t.Fatalf("setup: bob %d, want 0", got)
+	}
+
+	// The reversal must FAIL -- and must hand the entry back.
+	won, err := reverse(ctx, db, l, original, "rvsl-doomed", "rev-doomed")
+	if err == nil {
+		t.Fatal("C5: reversing into an emptied account should fail on the compensating debit")
+	}
+	if !errors.Is(err, core.ErrInsufficientFunds) {
+		t.Fatalf("C5: want the R3 rejection, got %v", err)
+	}
+	if won {
+		t.Fatal("C5: reverse reported it still holds the claim after the posting failed")
+	}
+	if n := scalar(t, db, `SELECT COUNT(*) FROM reversals WHERE original_transfer_id = ?`,
+		original.ID); n != 0 {
+		t.Fatalf("C5: %d claim row(s) stranded after a failed compensating transfer. "+
+			"UNIQUE (original_transfer_id) now blocks this entry forever -- the money-path "+
+			"liveness defect", n)
+	}
+	// Nothing moved on the failed attempt.
+	if got := balance(t, l, a); got != 60 {
+		t.Fatalf("C5: alice %d after the FAILED reversal, want 60 (nothing should have moved)", got)
+	}
+
+	// Funds come back, and the entry is still reversible -- the whole point.
+	if _, err := l.Transfer(ctx, core.TransferCmd{
+		Authorizer: "carol", From: c, To: b, Amount: 40, Currency: usd, IdempotencyKey: "refund",
+	}); err != nil {
+		t.Fatalf("carol refunds bob: %v", err)
+	}
+	won, err = reverse(ctx, db, l, original, "rvsl-retry", "rev-retry")
+	if err != nil {
+		t.Fatalf("C5: the entry must still be reversible after a failed attempt, got %v", err)
+	}
+	if !won {
+		t.Fatal("C5: the retry did not win the claim -- the released claim was not released")
+	}
+
+	// And it settled properly: one link row, pointing at a real compensating transfer.
+	if n := scalar(t, db, `SELECT COUNT(*) FROM reversals
+		WHERE original_transfer_id = ? AND reversal_transfer_id IS NOT NULL`, original.ID); n != 1 {
+		t.Fatalf("C5: want exactly 1 settled reversal after the successful retry, got %d", n)
+	}
+	if got := balance(t, l, a); got != 100 {
+		t.Fatalf("C5: alice %d after the successful reversal, want 100", got)
+	}
+
+	// The entry is now genuinely spent: a third attempt is refused, as it must be.
+	if won, _ := reverse(ctx, db, l, original, "rvsl-third", "rev-third"); won {
+		t.Fatal("C5: an already-reversed entry must not be reversible again")
+	}
+	if failed := assertInvariants(t, db, l, a, b, c, sys); failed != 0 {
+		t.Fatalf("C5: %d invariant violation(s)", failed)
 	}
 }
