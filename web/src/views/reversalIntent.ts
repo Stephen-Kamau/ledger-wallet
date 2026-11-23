@@ -1,12 +1,19 @@
 // views/reversalIntent.ts — one idempotency key per reversal INTENT, reused across every
 // retry of that intent (R4).
 //
-// WHY THIS IS NOT INLINE IN THE COMPONENT. The first cut called
-// `client.reverseEntry(entryId, newIdempotencyKey())` directly, minting a fresh key on
-// every invocation, while the comment above it claimed per-intent semantics. The retry
-// path is live — an unconfirmed outcome offers "Try again" — so against a backend that
-// enforces R4 BY KEY the retry is a distinct intent and posts a SECOND compensating
-// transfer. Money moves twice. Caught in review (C1, burst `reversals`).
+// WHAT ACTUALLY GUARANTEES NO DOUBLE REVERSAL — and it is not this file.
+// `migrations/0004_reversals.sql` carries `UNIQUE (original_transfer_id)`. That constraint
+// makes a second correction for the same entry structurally impossible, whatever key is
+// sent; kofi's TestR18 proves it with deliberately distinct keys. Naming the key as the
+// guard, as an earlier version of this comment did, credits the wrong mechanism.
+//
+// WHY THIS FILE STILL EARNS ITS KEEP. The first cut called
+// `client.reverseEntry(entryId, newIdempotencyKey())`, minting a fresh key per CALL while
+// claiming per-intent semantics. With the retry path live, a retried reverse is then a
+// distinct intent at the API boundary: the database still refuses to double-post, but the
+// client gets a conflict it caused itself rather than the replay R4 is supposed to give
+// it. Reusing the key is what makes a retry idempotent at this layer instead of relying on
+// a constraint two layers down to catch us. Raised as C1 and downgraded on that basis.
 //
 // The fix has to be a keyed store rather than a single key, because retries are per row
 // and two rows can be mid-intent at once. It lives here, outside React, so the property

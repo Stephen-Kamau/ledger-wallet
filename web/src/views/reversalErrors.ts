@@ -79,18 +79,30 @@ export const REVERSAL_ERRORS: Record<string, ReversalErrorSpec> = {
     msg: "That account is not available any more. Refresh, or pick another account.",
   },
 
-  // 409 / 422 — the compensating transfer was itself rejected by an invariant. The
-  // original entry stands, unreversed; say which, because "reversal failed" alone
-  // leaves the user guessing whether money moved.
+  // 409 / 422 — the compensating transfer was itself rejected by an invariant, AFTER the
+  // reversal claim committed. Two facts the copy must carry, and the second is the one
+  // that was missing: no money moved, AND a later attempt will not succeed either.
+  //
+  // Reversal is claim-then-settle across two transactions, because `core` has no `Reverse`
+  // seam that writes the claim and the compensating postings together. The claim row is
+  // inserted and committed first; if the compensating transfer then fails, the claim is
+  // left behind unsettled, and migrations/0004_reversals.sql `UNIQUE (original_transfer_id)`
+  // rejects every future reversal of that entry. Nothing currently deletes the stranded
+  // claim.
+  //
+  // So the earlier copy — "The entry was not reversed" — was read as "try again later",
+  // which the schema has permanently revoked. Promising retriability the system cannot
+  // honour is worse than naming the dead end. Caught in review (C5, burst `reversals`);
+  // the seam fix itself is core/api work, outside this stream's scope.
   insufficient_funds: {
     at: { row: true },
     action: "none",
-    msg: "Reversing this entry would overdraw the account the money has to come back out of. The entry was not reversed and no money moved.",
+    msg: "Reversing this entry would overdraw the account the money has to come back out of. No money moved. This entry cannot be reversed again — post a correcting transfer instead.",
   },
   currency_mismatch: {
     at: { row: true },
     action: "none",
-    msg: "This entry's accounts no longer share one currency, so it cannot be reversed automatically. The entry was not reversed.",
+    msg: "This entry's accounts no longer share one currency, so it cannot be reversed automatically. No money moved, and this entry cannot be reversed again — post a correcting transfer instead.",
   },
   unbalanced: {
     at: { row: true },
@@ -100,7 +112,7 @@ export const REVERSAL_ERRORS: Record<string, ReversalErrorSpec> = {
   invalid_account: {
     at: { row: true },
     action: "none",
-    msg: "One of the accounts on this entry is no longer valid, so the correction cannot be posted. The entry was not reversed.",
+    msg: "One of the accounts on this entry is no longer valid, so the correction cannot be posted. No money moved, and this entry cannot be reversed again — post a correcting transfer instead.",
   },
 
   // 409 — our own idempotency key collided with a different intent. A client bug, but

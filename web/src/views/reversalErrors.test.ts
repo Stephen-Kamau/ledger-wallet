@@ -97,10 +97,16 @@ describe("an unknown outcome is reported as UNCONFIRMED, never as 'not reversed'
     expect(unconfirmedOutcome("").message).toContain("cannot confirm");
   });
 
-  it("only DETERMINISTIC pre-commit rejections are allowed to say nothing posted", () => {
-    // These are refused by an invariant before anything is written, so the claim is safe.
+  it("a compensating-leg rejection says no money moved AND does not promise a retry (C5)", () => {
+    // The claim row commits before the compensating transfer runs, so one of these
+    // strands the claim and UNIQUE (original_transfer_id) blocks every later attempt.
+    // Saying only "the entry was not reversed" reads as "try again later" — which the
+    // schema has permanently revoked.
     for (const code of ["insufficient_funds", "currency_mismatch", "invalid_account"]) {
-      expect(mapReversalError(err(code)).message).toMatch(/not reversed/);
+      const m = mapReversalError(err(code));
+      expect(m.message, code).toMatch(/[Nn]o money moved/);
+      expect(m.message, code).toContain("cannot be reversed again");
+      expect(m.action, code).toBe("none");
     }
   });
 
@@ -122,6 +128,6 @@ describe("reversal copy differs from transfer copy where the meaning differs", (
 
   it("insufficient_funds states that no money moved", () => {
     const m = mapReversalError(err("insufficient_funds", 409));
-    expect(m.message).toContain("no money moved");
+    expect(m.message).toContain("No money moved");
   });
 });
