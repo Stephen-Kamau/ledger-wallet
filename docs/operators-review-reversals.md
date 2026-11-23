@@ -146,6 +146,16 @@ holds in **fact** - I hold no claim, wrote no `web/` file, and my scope is `docs
 it is not currently *attested* by the machinery. I cannot self-certify that; it needs roles
 configured, or an Orchestrator exception recorded in `AIGILE_DECISIONS.md`.
 
+**Raised as a formal exception request: see `AIGILE_DECISIONS.md` D-Z1 [2026-11-23].** The gate
+later exits **37** (`no signed reviewer identity on any verdict`) once a burst base exists, and
+`ag-role-review status` reports `roles not configured` - so there is no compliant route at all.
+D-Z1 states the factual basis for independence and puts the decision to the Orchestrator rather
+than assuming it.
+
+**Stale claims: confirmed independently and filed.** The Orchestrator reproduced this finding in
+kofi's clone - 5 WARNs, 4 of them dead claims from shipped bursts, one kofi's own - and filed it
+as **AGV-396** in canonical. Tracked there, not here.
+
 ## Merge integrity
 
 One rebase onto `origin/dev`, clean, **no conflict and no overwrite**. nia's 17 files applied

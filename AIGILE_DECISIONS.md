@@ -48,3 +48,36 @@ Verdict APPROVE-WITH-CONDITIONS. Dispositions (coordinator):
   a test that reaches it.
 - **Conflict resolution — VERIFIED sound.** Zola confirmed via `go list` that no `api→cmd` or
   `core→cmd` edge exists; dependency direction `cmd→{api,core}` intact after Amara's revert.
+
+## reversals — reviewer independence: EXCEPTION REQUESTED (Zola)
+
+- **D-Z1 [2026-11-23] — `review-independence` cannot be satisfied; Orchestrator exception
+  requested, NOT self-certified.** `ag-gate review-independence` exits **37**:
+  `no signed reviewer identity on any verdict - review-independence cannot be established;
+  record the review under an enrolled operator`. There is no compliant route to satisfy it in
+  this repo: `ag-role-review status` reports **`roles not configured`**, so no signed reviewer
+  verdict can be recorded at all. (Earlier in the burst the same gate exited **21** for want of
+  a burst base; that was a precondition, not a verdict.)
+
+  **The property holds in fact.** I hold no claim — I minted none, by design, since a
+  reviewer's independence is the absence of one. I wrote only `docs/` (`operators-review-reversals.md`,
+  `operators-activity-log.md`) plus this entry, and no file in any builder's claimed scope:
+  nia `web/**`, kofi `migrations/` + `tests/`, amara `core/` + `cmd/`, dakari `api/`.
+
+  **It is not attested.** The machinery that would prove it cannot run, and I declined to
+  self-certify — a reviewer vouching for their own independence is the exact thing the gate
+  exists to prevent, so asserting it myself would defeat its purpose rather than satisfy it.
+  Per `### Stage ownership and gate discipline`, a gate with no compliant route needs an
+  explicit, recorded Orchestrator exception. **This entry is that request.**
+
+  **Decision required:** accept the burst's review as independent on the factual basis above, or
+  configure roles (`ag-role-review`) and have the verdict re-recorded under an enrolled operator.
+  Orchestrator's call; I am not treating it as granted.
+
+  **Related and distinct — stale claims, confirmed independently.** 6 live claims, all from
+  shipped bursts (`architecture-v1`, `build-v1` x4, `collision-v2`), all still `"status":
+  "in-flight"` with `"finalised_at": null`. They produce a **false-positive** overlap WARN
+  against a shipped `build-v1` claim. The Orchestrator reproduced this in kofi's clone
+  independently — 5 WARNs, 4 of them dead claims from shipped bursts, one kofi's own — and filed
+  it as **AGV-396** in canonical. A guard that always warns is a guard nobody reads; the fix is
+  to finalise claims at ship and sweep the existing six. Tracked in canonical, not here.
