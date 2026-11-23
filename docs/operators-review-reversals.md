@@ -350,3 +350,196 @@ mandatory live reversal e2e (reverse / idempotent replay / 409 / 403) **has stil
 Every landed stream passes on its own scope. The burst does not ship: C3 leaves the
 reversal path unreachable and unverified end to end, and C6 means the typed 409 the brief
 requires is wired to produce a 500 the moment the path opens.
+
+---
+
+# Review round 5 - dakari's handler; the seam defect, and its root cause
+
+**Reviewed at:** `4807855` (dev), 2026-11-23 UTC. All five streams landed.
+
+Everything below was re-derived here. dakari reported the defect and then corrected
+themselves twice; both the report and both corrections were verified against the code before
+being accepted, and one of them changes my recommendation.
+
+## Closed this round
+
+| Finding | Status | Evidence |
+|---|---|---|
+| **C3** live reversal e2e | **CLOSED AS WRITTEN** | route exists; the e2e has now run |
+| **C6** unmapped 409/404 | **RESOLVED** | `coreErrorMap` rows 49-50, plus a guard test |
+| **C7** gofmt | **RESOLVED** | `gofmt -l` clean |
+| **C1** fresh-key double-post | **EMPIRICALLY CLOSED** | fresh key returns 409, not a second posting |
+
+dakari's sharper reframing of C3 is accepted: C3 as written was "no route, e2e never run", and
+both are now false. What follows is a **new** finding the e2e produced, not C3 surviving.
+
+C6's fix is better than the two rows I asked for: `TestErrorMap_EveryCoreSentinelMapped`
+(`api/api_test.go:390`) now asserts every exported `core.Err*` sentinel has a row, so the next
+unmapped sentinel is a failing test rather than a silent 500. That is the class fixed, not the
+instance.
+
+**My own live e2e, six legs, against a real `ledgerd` + real SQLite:**
+
+```
+201  reverse, authorised by the DESTINATION owner
+200  idempotent replay, same key, replayed=true, same transfer id
+409  already_reversed, FRESH key        <- C1's exact path
+403  unauthorized, source owner attempts it
+400  idempotency_key_required
+401  no bearer
+     CONSERVATION after reversal = 0 (treasury -10000, alice 9900, bob 100)
+```
+
+## C8 - RAISED AND CLOSED THIS ROUND. (Was: the real UI cannot reverse anything.)
+
+Independently reproduced here, not taken on report:
+
+```
+posting id   post_000001a208f434f9fbcdb62942041319  -> 404 entry_not_found
+transfer id  xfer_000001a208f434f97bf5972ba8e35d81  -> 201
+```
+
+`core.Reverse`'s `entryID` is looked up as a transfer (`core/reversal.go:55`,
+`tx.FindTransferByID`). The UI sends `p.id` (`StatementPane.tsx:233`), the posting id - and
+`postingResp` exposes `id` and `transfer_id` as distinct fields, so the row genuinely carries
+both. **Every reversal from the shipped UI 404s.**
+
+**This is not a bug in the web stream.** See the root cause below: a statement row IS a leg,
+and `core.Entry` is defined as a leg, so sending the row's own id is what this repo's own
+defined term implies. The defect is the term, and it is in the seam. Attributing it to the
+call site would be wrong.
+
+Confirmed that no stream's tests can reach it, which is the part worth keeping: dakari's
+handler tests drive a `fakeLedger` the test configures, so the id kind never matters; nia's
+drove her stub; amara's core tests pass transfer ids to themselves. Each is self-confirming in
+exactly the way I flagged about the stub in round 1. **`grep` for any test driving a posting id
+into reverse returns nothing.** The defect exists only in the seam, and only a live e2e
+crosses it.
+
+## Root cause: the burst misuses a term this repo has already defined
+
+This is not loose wording, and it is sharper than "entry means three things".
+**`core.Entry` is a defined type in the same package**, and the spec is explicit:
+
+> `docs/architecture/00-core.md:106` - *"Entry is an INTENDED **leg** of a transfer - the
+> request-level unit. A transfer is a set of entries that must net to zero (R1)."*
+> (`core/posting.go:9`)
+
+So in this codebase an Entry **is a leg**. Which means:
+
+- `core.Reverse(entryID)` accepting **only** a transfer id contradicted a type defined beside
+  it. That was the defect, and it was core's, not the route's.
+- `POST /entries/{id}/reverse` is the **right** name - an entry is a leg, so the route should
+  take a leg's id. It did not, until `321398d`. The name was never the problem.
+- **nia's UI was the spec-consistent reading.** A statement row is a leg; sending the row's own
+  id is what the defined term implies. The UI is the one component that did not drift.
+
+I did not follow my own finding to that conclusion on first pass - I reached for a route rename
+when the definition pointed at the parameter. See the withdrawal below.
+
+## Recommendation: WITHDRAWN. amara's shipped fix is right; mine was not.
+
+I recommended the rename (`POST /transfers/{id}/reverse`, `entryID` -> `transferID`, UI sends
+`p.transfer_id`). **I am withdrawing that.** dakari challenged it, asked me to check two things,
+and both check out - against my own recommendation.
+
+**It contradicted the finding I used to justify it.** I argued from `00-core.md:106` that an
+Entry IS a leg, that a statement row is a leg, and that the UI sending the row's own id was
+therefore the spec-consistent reading. Option 4 then has the UI *stop* sending the row's own id.
+If an entry is a leg, a route called `/entries/{id}` **should** take a leg's id - which is
+exactly what amara's `resolveEntry` now makes it do. The defect was never that the route said
+"entries"; it was that core accepted only transfer ids under a parameter named `entryID`.
+amara fixed precisely that mismatch.
+
+**And the cost comparison I gave was inverted.** I claimed option 2/4 would silently break
+nia's overlay. Verified empirically at `321398d`: `api/types.go:112` echoes `ReversesEntryID:
+entryID` - **the id the client sent**. Driving the posting id through a real server:
+
+```
+POST /entries/post_000001a208fd9837a44b104d8c02b88d/reverse  -> 201
+     reverses_entry_id = post_000001a208fd9837a44b104d8c02b88d   (the posting id, echoed)
+POST /entries/xfer_.../reverse  (same entry, other id, FRESH key)  -> 409 already_reversed
+     CONSERVATION = 0
+```
+
+So `reversedEntryId` is a posting id, `reversalIndex.ts:67` compares posting id to posting id,
+and **the overlay works unchanged. amara's fix costs the web stream nothing.** Option 4 is now
+the *only* option that would require the overlay rework - the very silent-failure risk I
+promoted to its own section as the most important finding in this burst. I would have been
+mandating the risky change to buy a name less faithful to the spec than the one already there.
+
+**What I still think is worth doing**, and it is naming hygiene, not rewiring: `entryID` should
+say it accepts either spelling, and the per-transfer granularity should be documented where a
+caller sees it. Reversing a leg reverses that leg's **whole transfer** (`mirror` mirrors every
+posting of it) - which is correct, since R1 will not let half a balanced transaction be undone,
+but it is surprising from a route whose id names one leg. No route rename, no change to web.
+
+**One small gap, advisory and low severity.** `resolveEntry` tries the transfer lookup first and
+falls back to the posting lookup, and the comment justifies the ordering with "the ids are
+prefixed (`xfer_`, `post_`) so the two namespaces cannot collide anyway". Nothing asserts that.
+`newID(prefix)` composes `prefix + "_" + hex` and the separation is a convention held at the
+call sites; **no test pins posting ids and transfer ids as disjoint.** The invariant does hold by
+construction, so this is not a defect - but the stated justification for a silent ordered
+fallback is unasserted, and one disjointness test would pin it.
+
+## The conflation recurs one layer in, and no type system can see it
+
+Raised by nia, relayed by dakari, verified here. Option 2 as a bare call-site change would
+**silently** break the statement overlay:
+
+- `reversalIndex.ts:62` keys the CORRECTION side on `row.transfer_id` - correct.
+- `reversalIndex.ts:67` keys the REVERSED side on `row.id`, a **posting** id, via
+  `locallyReversed.has(row.id)`, where `locallyReversed` is built from `l.reversedEntryId`.
+
+Feed `reversedEntryId` a transfer id and line 67 compares a transfer id against a posting id.
+Both are `string`, so `tsc` stays green, all 65 tests stay green, and the "Reversed" badge just
+quietly stops appearing until a server round-trip. A silent failure, in the same component,
+from the same conflation that caused C8.
+
+**That is the most review-relevant fact in this burst.** The posting/transfer conflation has now
+produced two defects at two layers, and in both places the type system could not help because
+both ids are bare `string`. The rename (option 4) fixes this instance and leaves nia's index
+carrying one id type instead of two. It does not fix the class: nothing stops the next
+conflation. Branded ids - `type PostingId = string & { readonly __brand: unique symbol }`, and
+the same for a transfer id, in `web/src/api/types.ts` and as distinct Go types in `core` - would
+make the next one a compile error instead of a silent badge. **Worth a DEFERRED entry with this
+burst as its trigger evidence**; it is not this burst's work and I am not proposing it as scope.
+
+## C4 - CLOSED
+
+nia deleted the alias hedge outright at `7ec09bd` (`REVERSAL_CODE_ALIASES` gone), with a test
+pinning `transfer_not_found` / `entry_already_reversed` / `posting_not_found` as **UNMAPPED**
+(`reversalErrors.test.ts:149-153`) so a code the server never sends cannot be silently absorbed.
+Verified. Better than the advisory asked for: it closes the hedge and guards the reopening.
+
+## C8 closure
+
+Fixed by amara at `321398d`: `resolveEntry` accepts either spelling, trying the transfer id
+first. Verified here against a real server - the posting id now returns **201**, the cross-id
+double-reverse returns **409 already_reversed**, and conservation holds. C8 is dead.
+
+## Burst verdict: APPROVE-WITH-CONDITIONS
+
+Every blocking finding this burst raised is now closed: C1, C2, C3, C4, C5, C6, C7, C8.
+The reversal path is reachable from the shipping client, correct on all six behavioural legs
+plus the cross-id case, and conserves value.
+
+**Evidence at the verdict HEAD (`d3a4a01`):** `go build` / `go vet` / `gofmt -l` clean;
+web **64/64**; live reversal e2e all pass including the posting-id leg, the cross-id 409 and
+conservation. Full `go test ./... -race` green (exit 0, `tests` 361s) at `321398d`; the only
+code change since is `api/reversal.go`, verified **comment-only**, so that run is cited rather
+than re-run (test economy).
+
+Remaining conditions:
+
+1. ~~**Naming hygiene in `core`**~~ - **CLOSED** by dakari at `7e436c4`. `api/reversal.go` now
+   states at the caller-visible boundary what `{id}` accepts (a posting id, with the transfer id
+   also resolving), and that reversing a leg reverses its whole transfer because R1 makes half a
+   correction unrepresentable. That is the condition as written, at the place a caller reads.
+2. **Pin the prefix-disjointness invariant** that `resolveEntry`'s ordered fallback relies on -
+   **open**, advisory, low severity.
+
+And one DEFERRED candidate, explicitly not this burst's scope: **branded ids**. The
+posting/transfer conflation produced two defects at two layers in this burst, and in both the
+type system could not help because every id is a bare `string`. That is the class fix; the
+rest of this burst fixed instances.
