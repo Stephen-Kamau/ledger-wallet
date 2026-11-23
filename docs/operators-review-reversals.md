@@ -909,3 +909,42 @@ disclosure I applied to `core/id_test.go`, and the same one I would expect of an
 ## Burst `reversals`: all findings and all conditions closed
 
 C1-C9 closed. Conditions 1, 2 and 3 closed. Verdict **APPROVE**.
+
+---
+
+# Reviewer stand-down - zola
+
+**Stood down on Orchestrator instruction, 2026-11-23.** Nothing to archive: verified, not
+assumed.
+
+- **No plan store.** `AIGILE_PLAN/current/bursts/` holds three open stores - nia `5ec0edc1`,
+  kofi `58487fc0`, dakari `f565fc1d`; amara's is already archived. **None is zola's**, so there
+  is no store for this reviewer to close. The `Phase: Producing` in this clone's STATUS belongs
+  to amara's resolved store, not to me.
+- **No claim.** No `kind: claim` event under this login in any manifest. That was deliberate
+  from the first message of the burst: a reviewer's independence is the absence of a claim.
+- **Nothing unpushed.** 14 commits on `origin/dev`, zero ahead, working tree clean.
+
+## Final verdict: APPROVE
+
+C1-C9 closed. Conditions 1, 2 and 3 closed. D-Z1 granted on the factual basis.
+
+## Two things I am handing over rather than closing
+
+1. **`AGV-396` citations are mine, and they are part of the ship gate's first blocker.**
+   Three in this repo's docs plus one commit message. The Orchestrator has elected to cite the
+   D-A1 exceptions, so they stay as written; they are a one-line fix to a citation form if that
+   is ever preferred to an exception.
+2. **No build-stage review verdict is recorded** (`reviews: {}` in the burst manifest). My work
+   is a reviewer's document, not the Reviewer seat's machine-readable verdict - the gate is
+   right to refuse to treat one as the other, and `roles not configured` is why none exists.
+   Covered by exception for this burst. It recurs on the next one unless `ag-role-review` is
+   configured.
+
+## What this burst taught, in one line
+
+Four findings - C8, the overlay keying, the stub injection, condition 3 - had the same shape:
+**a layer verified against something it supplied itself.** A stub that invents a field and a
+test that restates a constant are the same defect, and neither is visible from inside the layer
+that holds it. Every one surfaced only on contact with a real server, or by mutating the thing
+the test claimed to guard.
