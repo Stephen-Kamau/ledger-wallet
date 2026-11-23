@@ -18,9 +18,9 @@
     "name": "Nia Achieng",
     "email": "nia@ledger.test"
   },
-  "status": "in-flight",
+  "status": "finalised",
   "started_at": "2026-11-23T12:44:21Z",
-  "finalised_at": null,
+  "finalised_at": "2026-11-23T20:50:23Z",
   "primary_usage": null,
   "phases": [
     {
@@ -58,5 +58,13 @@
   "contributors": [],
   "diff_stat": null,
   "token_economics": null,
-  "test_economics": null
+  "test_economics": null,
+  "stream_reconciliation": {
+    "recorded_at": "2026-11-23T20:50:23Z",
+    "plan_source": "AIGILE_PLAN/closed/2026-11-23-reversals-5977f41/round_1/plan.md",
+    "plan_unavailable_reason": null,
+    "plan_streams": [],
+    "manifest_streams": [],
+    "differences": []
+  }
 }
