@@ -146,7 +146,11 @@ holds in **fact** - I hold no claim, wrote no `web/` file, and my scope is `docs
 it is not currently *attested* by the machinery. I cannot self-certify that; it needs roles
 configured, or an Orchestrator exception recorded in `AIGILE_DECISIONS.md`.
 
-**Raised as a formal exception request: see `AIGILE_DECISIONS.md` D-Z1 [2026-11-23].** The gate
+**Raised as a formal exception request, and GRANTED: see `AIGILE_DECISIONS.md` D-Z1
+[2026-11-23].** The Orchestrator accepted the review as independent on the factual basis
+recorded there. Note what the grant covers: this burst only. The gate still exits 37 and
+`ag-role-review status` still reports `roles not configured`, so the next burst does not inherit
+this exception.** The gate
 later exits **37** (`no signed reviewer identity on any verdict`) once a burst base exists, and
 `ag-role-review status` reports `roles not configured` - so there is no compliant route at all.
 D-Z1 states the factual basis for independence and puts the decision to the Orchestrator rather
@@ -799,3 +803,47 @@ four sites. It is non-blocking and routed; it does not qualify C9's closure.
 
 **Verdict: APPROVE-WITH-CONDITIONS.** C1-C9 closed. Conditions 1 and 2 closed. Condition 3 open,
 non-blocking.
+
+---
+
+# Burst `reversals` - reviewer sign-off
+
+**D-Z1 GRANTED by the Orchestrator, 2026-11-23**, on the factual basis recorded in
+`AIGILE_DECISIONS.md`. With independence accepted, this review is final.
+
+## Verdict: APPROVE-WITH-CONDITIONS
+
+| | |
+|---|---|
+| **Findings raised** | C1-C9, all **closed** |
+| **Conditions 1, 2** | **closed** (dakari `7e436c4`; this reviewer `c814880`, mutation-verified) |
+| **Condition 3** | **open**, non-blocking - the unpinned `rev_` literal across four sites |
+| **Go suite** | `go test ./... -race` **green, exit 0** |
+| **Web suite** | **73/73**, 5 files |
+| **Live e2e** | all legs pass; **conservation = 0** before and after reversal |
+| **Merge integrity** | 5 conflicts on the shared activity log, **every row kept**, nothing overwritten |
+
+## What this review is, and is not
+
+It **is** an independent read of five streams' work by an operator holding no claim, with every
+finding verified against the code or a running server before being reported, and every
+correction - including four to my own findings - recorded rather than quietly amended.
+
+It is **not** an attested-independent review. The gate that would prove that cannot run here.
+D-Z1 records a human accepting the factual basis instead, scoped to this burst.
+
+## The one lesson worth carrying
+
+Four of this burst's findings had the same shape, and amara stated it best:
+
+> The tell is not the duplication - it is that the duplicate sits in the **TEST**. A test that
+> restates the constant cannot fail for the contract, only for itself, so it converts a guard
+> into decoration while still showing green.
+
+C8, the overlay keying, the stub injection and condition 3 are all that shape. Every one was
+invisible to its own layer's tests and visible only on contact with a real server. **The stub
+that invents a field and the test that restates a constant are the same defect**: both answer a
+question production never asked them.
+
+Condition 3 is the one instance still open. It is the cheapest of the four to fix and the only
+one left where the next drift would be silent.

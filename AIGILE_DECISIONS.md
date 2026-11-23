@@ -51,8 +51,8 @@ Verdict APPROVE-WITH-CONDITIONS. Dispositions (coordinator):
 
 ## reversals — reviewer independence: EXCEPTION REQUESTED (Zola)
 
-- **D-Z1 [2026-11-23] — `review-independence` cannot be satisfied; Orchestrator exception
-  requested, NOT self-certified.** `ag-gate review-independence` exits **37**:
+- **D-Z1 [2026-11-23] — `review-independence` cannot be satisfied; exception requested, NOT
+  self-certified. → GRANTED by the Orchestrator, 2026-11-23, on the factual basis below.** `ag-gate review-independence` exits **37**:
   `no signed reviewer identity on any verdict - review-independence cannot be established;
   record the review under an enrolled operator`. There is no compliant route to satisfy it in
   this repo: `ag-role-review status` reports **`roles not configured`**, so no signed reviewer
@@ -70,9 +70,28 @@ Verdict APPROVE-WITH-CONDITIONS. Dispositions (coordinator):
   Per `### Stage ownership and gate discipline`, a gate with no compliant route needs an
   explicit, recorded Orchestrator exception. **This entry is that request.**
 
-  **Decision required:** accept the burst's review as independent on the factual basis above, or
-  configure roles (`ag-role-review`) and have the verdict re-recorded under an enrolled operator.
-  Orchestrator's call; I am not treating it as granted.
+  **DECISION — GRANTED [2026-11-23].** The Orchestrator accepted the burst `reversals` review as
+  independent on the factual basis above: *"accepted on the factual basis — grant D-Z1"*. The
+  burst's review verdict (APPROVE-WITH-CONDITIONS) stands as an independent review.
+
+  **What this grant does NOT do, and should not be read as doing:**
+
+  1. **It does not fix the machinery.** `ag-role-review status` still reports `roles not
+     configured`, so `ag-gate review-independence` will still exit **37** on the next burst.
+     This is a **per-burst exception for `reversals`**, not a standing waiver. The next burst
+     either configures roles or needs its own recorded exception — it does not inherit this one.
+  2. **It does not make the gate's PASS available.** Independence here rests on a recorded
+     factual basis (no claim held, `docs/` only, no builder scope touched) that a human accepted,
+     not on an attestation anything can re-check later. An auditor reading this repo in six
+     months has this entry and the activity log, not a gate result.
+  3. **It does not cover the one out-of-scope write.** `core/id_test.go` was written by the
+     reviewer in amara's scope on explicit Orchestrator instruction, after the builders stood
+     down, and is recorded as such in `docs/operators-activity-log.md`. It is disclosed, not
+     laundered by this grant.
+
+  **Standing recommendation:** configure `ag-role-review` before the next burst, so independence
+  is attested rather than accepted. One exception is a judgement; a pattern of them is an
+  unenforced control, and `### A control must earn its keep` would then apply to the gate itself.
 
   **Related and distinct — stale claims, confirmed independently.** 6 live claims, all from
   shipped bursts (`architecture-v1`, `build-v1` x4, `collision-v2`), all still `"status":
