@@ -567,3 +567,70 @@ And one DEFERRED candidate, explicitly not this burst's scope: **branded ids**. 
 posting/transfer conflation produced two defects at two layers in this burst, and in both the
 type system could not help because every id is a bare `string`. That is the class fix; the
 rest of this burst fixed instances.
+
+---
+
+# Review round 6 - C9, surfaced by nia after both conditions closed
+
+**Reviewed at:** `c814880` (dev), 2026-11-23 UTC.
+
+## C9 - OPEN. A correction stops reading as a reversal after a page reload.
+
+Raised by nia in her closing rows; **verified here against a real `ledgerd` + real SQLite**,
+not taken on report:
+
+```
+POST /entries/<posting id>/reverse   -> 201
+     response body: reverses_entry_id = post_000001a209cf4247fd91f82d71a79c8f
+
+GET  /accounts/<id>/statement        (the same data, reloaded)
+     posting keys: [account_id, amount, created_at, currency, id, seq, transfer_id]
+     reverses_entry_id present:    False
+     reversed_by_entry_id present: False
+```
+
+The link exists **only in the reverse endpoint's own response**. `ReversesEntryID` is a field
+of that response type (`api/types.go:96`); `postingResp`, which the statement is built from,
+carries neither link field. So the badge and caption come entirely from the session overlay.
+After a reload the overlay is gone and the correction renders as **a bare second transfer**,
+with the original unmarked.
+
+That contradicts the burst's own stated deliverable. nia's stream plan required:
+
+> *"The compensating entry reads AS a reversal in the statement, linked to the entry it
+> reverses, not as an unexplained second transfer."*
+
+It does - for one session. Not across a reload, which is the normal case for anyone reading a
+statement.
+
+**This is the stub pattern for the third time**, and that is the part worth carrying forward.
+nia's `reverse-stub.mjs` *injected* `reverses_entry_id` / `reversed_by_entry_id` into statement
+responses, so the web layer was built and verified against a contract the real API never
+offered. The same self-confirming shape produced C8, and I flagged it about this very stub in
+round 1. Each time, only contact with the real server exposed it.
+
+**Not fixed here.** It spans `api/` (dakari) and probably `core/` (amara), both stood down, and
+the fix is a contract change - which postings carry which link fields - not a patch. Routing is
+the Orchestrator's.
+
+**Severity:** no money moves wrongly, nothing is corrupted, and every invariant still holds.
+It defeats a stated deliverable of the burst rather than a correctness property, so I am
+recording it as open rather than reopening the money-path verdict.
+
+**Evidence at `c814880`:** full `go test ./... -race` **green, exit 0** (`tests` 367s) with the
+two new invariant tests included; `go build`, `go vet`, `gofmt -l` clean; web 64/64; live
+reversal e2e all legs pass with conservation intact.
+
+## Burst verdict: APPROVE-WITH-CONDITIONS, one condition now open again
+
+- C1-C8: **closed**.
+- Condition 1 (naming hygiene): **closed** by dakari at `7e436c4`.
+- Condition 2 (pin prefix disjointness): **closed** by this reviewer at `c814880`,
+  mutation-verified.
+- **C9: OPEN.** The reversal UX deliverable is met in-session only.
+
+My view, since the Orchestrator routes it: C9 should be fixed in this burst rather than
+deferred. The burst's goal was reversal, a correction that does not read as a correction after
+a reload is the feature only half-delivered, and the fix is a known contract addition to a
+response shape two streams already understand. But it is a deliverable gap, not a safety one,
+and shipping with it recorded is a defensible call that I am not making unilaterally.
