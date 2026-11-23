@@ -129,7 +129,47 @@ stands and `/ag-ship` proceeds over a recorded exception, never a silent bypass.
 resolve the Reviewer seat, so the next burst inherits `PROFILE_STALE` and must decide again.
 It is scoped to this burst, exactly as D-Z1 was.
 
+**EXTENDED 2026-11-23 to cover all three ship gates.** The steer that authorised D-A1 named
+only exit 31, because only exit 31 had been run at that point. Running the universal
+pre-flights surfaced two more refusals, both put to the Orchestrator before proceeding and
+both granted for this burst:
+
+```
+SHIP_PREFLIGHT_EXIT: 31          no cleared build-stage review verdict        (D-A1, original)
+INDEPENDENCE_PREFLIGHT_EXIT: 35  Builder declaration identity absent/malformed (D-A1, extended)
+REVIEW_INDEPENDENCE_PREFLIGHT_EXIT: 37  no signed reviewer identity on a verdict (D-Z1 named it)
+```
+
+All three have ONE cause, visible in the burst manifest: `builder_declarations`,
+`builder_terminal_invocations`, `reviews`, `governance_invocations` and `streams` are all
+EMPTY. This clone drove `ag-phase` and `ag-plan-store` directly, exactly as the operator
+pack instructs, rather than through the seat-dispatch path that populates those arrays. So
+independence is UNDECIDABLE to the gates while being demonstrably TRUE in fact:
+`ag_claims.check_independence` returns zola PASS (holds no claim) and BLOCK for all four
+builders.
+
+**A fourth instance, same cause, recorded at the close-out.** `ag-ship-review-dev` returned
+`SHIP_REVIEW_NOT_CONFIGURED - could not resolve a Ship-review seat and no --model given`.
+The repo's `ship_review_policy` is undeclared and therefore `blocking`, under which only
+`SHIP_REVIEW_DONE` proceeds. The SUBSTANCE of that gate is satisfied and recorded: zola's
+ship-level reviewer sign-off (`docs/operators-review-reversals.md`, "Burst `reversals` -
+reviewer sign-off") is FINAL under D-Z1, verdict APPROVE-WITH-CONDITIONS, with conditions 1
+and 2 closed there and condition 3 closed afterwards by `b6d84ec` and mutation-verified by
+this stream on both failure modes. What cannot be produced is the seat token, for the same
+reason as the other three.
+
+**What was explicitly NOT done.** No `builder_declarations` entry was fabricated to turn
+exit 35 green. That is the same trade declined on the refreeze: a green gate bought with a
+record of something that did not happen is worse than a refusal that is written down.
+
+**Scope of the extension.** This burst, DEV FLOW close-out only. `dev` -> `main` promotion is
+NOT covered and was deliberately left to the coordinator, once all five operator streams are
+in. A five-operator burst's promotion is not one operator's call.
+
 **Standing recommendation.** Resolve the profile staleness while Idle (`ag-init` reselect),
-not mid-burst. Two accepted-on-facts exceptions in one burst (D-Z1 for independence, D-A1 for
-its recording) is the pattern `### A control must earn its keep` says to look at: the control
-is not enforcing, it is being routed around on judgement each time.
+not mid-burst, and make `ag-operator join` populate a builder declaration so an operator
+clone's manifest can satisfy the gates it is measured by. THREE accepted-on-facts exceptions
+across one burst (D-Z1 for 37, D-A1 for 31 and now 35) is the pattern
+`### A control must earn its keep` says to look at: these controls are not enforcing on this
+path, they are being routed around on judgement each time. Either the operator-clone flow
+should populate what they read, or the gates should state that they do not apply to it.
