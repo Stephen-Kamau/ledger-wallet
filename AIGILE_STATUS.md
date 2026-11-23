@@ -6,9 +6,9 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 **Phase:** Producing
 **Active burst:** None
-**Burst base:** 5977f4196ef666a6454646ffad573d0c9b1de02d
+**Burst base:** 29bfb97ef68b929a66b087a18db0572bc1919ada
 **Plan reference:** None
-**Next action:** Idle - run /ag-plan to start a burst
+**Next action:** kofi stream landed (0fb6617). Awaiting dakari's POST /entries/{id}/reverse; then zola re-reviews the full burst diff.
 **Last updated:** [YYYY-MM-DD]
 
 <!-- Next action is the forward pointer for resume-on-/clear. Every phase  -->
