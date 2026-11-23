@@ -42,6 +42,65 @@ describe("server link fields are the authoritative source", () => {
   });
 });
 
+describe("links derived from the rev_ id — this is what survives a reload", () => {
+  // The live statement emits no reverses_entry_id / reversed_by_entry_id. Before this,
+  // a correction read as an unexplained second transfer after any reload, because only
+  // the session overlay linked it. core/reversal.go derives the id, so the page can too.
+  const original = p({ seq: 4, id: "pst_4", transfer_id: "xfer_9" });
+  const correction = p({ seq: 7, id: "pst_7", transfer_id: "rev_xfer_9", amount: -1000 });
+
+  it("labels the correction, naming the POSTING it corrects, with no server fields", () => {
+    const ix = buildReversalIndex([original, correction]);
+    expect(reversalStateFor(ix, correction)).toEqual({ kind: "reversal", ofEntryId: "pst_4" });
+  });
+
+  it("labels the original as reversed, naming the correction's posting", () => {
+    const ix = buildReversalIndex([original, correction]);
+    expect(reversalStateFor(ix, original)).toEqual({ kind: "reversed", byEntryId: "pst_7" });
+  });
+
+  it("withholds Reverse on the reversed original after a reload", () => {
+    const ix = buildReversalIndex([original, correction]);
+    expect(canReverse(reversalStateFor(ix, original), original)).toBe(false);
+  });
+
+  it("still offers Reverse on the correction — reversing a reversal is allowed", () => {
+    const ix = buildReversalIndex([original, correction]);
+    expect(canReverse(reversalStateFor(ix, correction), correction)).toBe(true);
+  });
+
+  it("handles a reversal of a reversal (rev_rev_)", () => {
+    const second = p({ seq: 9, id: "pst_9", transfer_id: "rev_rev_xfer_9" });
+    const ix = buildReversalIndex([original, correction, second]);
+    expect(reversalStateFor(ix, second)).toEqual({ kind: "reversal", ofEntryId: "pst_7" });
+    // The correction is now itself corrected, but it is a reversal FIRST — that is the
+    // identity the amount is read against.
+    expect(reversalStateFor(ix, correction).kind).toBe("reversal");
+  });
+
+  it("names the transfer when the corrected posting is on an earlier keyset page", () => {
+    const ix = buildReversalIndex([correction]);
+    expect(reversalStateFor(ix, correction)).toEqual({ kind: "reversal", ofEntryId: "xfer_9" });
+  });
+
+  it("matches the counterpart leg on THIS account, not just the first leg found", () => {
+    const otherLeg = p({ seq: 1, id: "pst_other", transfer_id: "xfer_9", account_id: "acc_b" });
+    const ix = buildReversalIndex([otherLeg, original, correction]);
+    expect(reversalStateFor(ix, correction)).toEqual({ kind: "reversal", ofEntryId: "pst_4" });
+  });
+
+  it("leaves an ordinary transfer untouched", () => {
+    const plain = p({ seq: 2, id: "pst_2", transfer_id: "xfer_plain" });
+    expect(reversalStateFor(buildReversalIndex([plain]), plain)).toEqual({ kind: "plain" });
+  });
+
+  it("an explicit server link still overrides the derived one", () => {
+    const withField = p({ seq: 7, id: "pst_7", transfer_id: "rev_xfer_9", reverses_entry_id: "pst_explicit" });
+    const ix = buildReversalIndex([original, withField]);
+    expect(reversalStateFor(ix, withField)).toEqual({ kind: "reversal", ofEntryId: "pst_explicit" });
+  });
+});
+
 describe("the session overlay fills the gap before the statement catches up", () => {
   it("marks a just-reversed entry as reversed even with no server field yet", () => {
     const rows = [p({ seq: 1 })];

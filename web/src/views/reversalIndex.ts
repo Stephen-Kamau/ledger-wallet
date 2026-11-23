@@ -41,8 +41,36 @@ export type RowReversalState =
 
 export type ReversalIndex = Map<string, RowReversalState>;
 
+// REVERSAL_ID_PREFIX mirrors core/reversal.go reversalPrefix. The compensating
+// transfer's id is DERIVED from the one it corrects — `rev_` + the original transfer id —
+// which is a guarantee of core, not a convention this layer hopes holds.
+//
+// That derivation is what lets the statement read correctly with NO new API field. The
+// live GET /accounts/{id}/statement emits neither `reverses_entry_id` nor
+// `reversed_by_entry_id` (verified against a real ledgerd: grep over the response body
+// returns 0 of each). The stub this stream was built against INJECTED them, so every
+// browser pass before the endpoint landed was answering a question the stub had supplied
+// the answer to. On a real server, before this, a correction survived a page reload as an
+// unexplained second transfer — exactly what the requirement forbids — because the session
+// overlay is all that linked it and a reload empties that.
+//
+// The id is already on every statement row, so both directions are recoverable from
+// `transfer_id` alone. No endpoint change, no coordination with another stream.
+const REVERSAL_ID_PREFIX = "rev_";
+
+function originalTransferOf(transferId: string): string | null {
+  return transferId.startsWith(REVERSAL_ID_PREFIX)
+    ? transferId.slice(REVERSAL_ID_PREFIX.length)
+    : null;
+}
+
 // buildReversalIndex keys by posting id. A row with no id cannot be linked in either
 // direction and is simply absent from the map (callers read it as "plain").
+//
+// Three sources, applied weakest to strongest so the strongest wins on conflict:
+//   (3) the session overlay — what a POST response told us before any refetch
+//   (2) the derived `rev_` link — recoverable from the page itself, survives a reload
+//   (1) explicit server link fields — authoritative if the API ever emits them
 export function buildReversalIndex(
   rows: readonly Posting[],
   local: readonly LocalReversal[] = [],
@@ -55,10 +83,26 @@ export function buildReversalIndex(
     local.map((l) => [l.reversalTransferId, l.reversedEntryId] as const),
   );
 
+  // transfer_id -> this account's postings under it, so a derived link can name the
+  // POSTING on the other end rather than only the transfer. Captions address entries.
+  const postingsByTransfer = new Map<string, Posting[]>();
+  for (const row of rows) {
+    if (row.transfer_id === undefined) continue;
+    const bucket = postingsByTransfer.get(row.transfer_id);
+    if (bucket === undefined) postingsByTransfer.set(row.transfer_id, [row]);
+    else bucket.push(row);
+  }
+
+  // counterpartEntry finds the posting on THIS account under `transferId`. A transfer has
+  // a leg per account; the statement only shows this account's, but a page can hold legs
+  // of several accounts, so match on account rather than taking the first.
+  const counterpartEntry = (transferId: string, accountId: string): string | undefined =>
+    postingsByTransfer.get(transferId)?.find((p) => p.account_id === accountId)?.id;
+
   for (const row of rows) {
     if (row.id === undefined) continue;
 
-    // (2) session overlay first, so (1) can override it below.
+    // (3) session overlay.
     if (row.transfer_id !== undefined && reversalTransfers.has(row.transfer_id)) {
       index.set(row.id, {
         kind: "reversal",
@@ -68,7 +112,26 @@ export function buildReversalIndex(
       index.set(row.id, { kind: "reversed" });
     }
 
-    // (1) server links win. Checked in this order because a row that is BOTH a
+    // (2) derived from the id. This is what makes a reload correct.
+    if (row.transfer_id !== undefined) {
+      const reversedTransfer = originalTransferOf(row.transfer_id);
+      if (reversedTransfer !== null) {
+        // This row IS a correction. Name the posting it corrects when that posting is on
+        // the page; otherwise name the transfer, which is still a true statement.
+        index.set(row.id, {
+          kind: "reversal",
+          ofEntryId: counterpartEntry(reversedTransfer, row.account_id) ?? reversedTransfer,
+        });
+      } else if (postingsByTransfer.has(REVERSAL_ID_PREFIX + row.transfer_id)) {
+        // A correction for this row's transfer is on the page, so this row is reversed.
+        index.set(row.id, {
+          kind: "reversed",
+          byEntryId: counterpartEntry(REVERSAL_ID_PREFIX + row.transfer_id, row.account_id),
+        });
+      }
+    }
+
+    // (1) explicit server links win. Checked in this order because a row that is BOTH a
     // correction and itself corrected is a reversal of something first — that is the
     // identity the user needs to read the amount, and `reversed` is then carried by
     // the later row that points back at it.
@@ -79,10 +142,12 @@ export function buildReversalIndex(
     }
   }
 
-  // A correction that is on the page while the entry it reverses is NOT (the original
-  // fell on an earlier keyset page) still reads as a reversal — it carries the id of
-  // what it put right. We deliberately do not hide or merge it: append-only means both
-  // rows exist, and a statement that quietly nets them out is lying about the ledger.
+  // A correction whose original is NOT on the page still reads as a reversal — it names
+  // the transfer it put right. Append-only means both rows exist; a statement that
+  // quietly nets them out would be lying about the ledger, so nothing is hidden or
+  // merged. The converse is an honest limit: an original whose correction has not been
+  // fetched yet cannot be known to be reversed, so Reverse is still offered and the
+  // server answers 409, which the UI renders with a Refresh.
   return index;
 }
 
