@@ -56,3 +56,16 @@ Columns: **Time (UTC)** | **Operator** | **Action** | **AI-gile / git command** 
 | 2026-11-16T07:50Z | kofi | **resolve keeping BOTH** | (agent) resolve + `go test ./...` | both features survive; a real semantic hazard fixed (two handler bodies were INTERLEAVED at a shared `if err` block); merge committed 7d11fcf; green |
 | 2026-11-16T07:55Z | coordinator | integrate both -> dev | `git fetch`/`checkout`; `go test ./...` | dev has PlaceHold + ListCurrencies; full suite green |
 | 2026-11-16T07:58Z | coordinator | **e2e on live server** | run ledgerd, curl | holds OK (201/409/204); **GET /currencies 500** — embeddedSchema↔migrations DRIFT: currencies table only in migration 0002, live server boots embeddedSchema. Tests passed, e2e caught it. Routed to owner Amara to fix. |
+
+## Burst: reversals (entry reversal as an append-only correction)
+
+| Time (UTC) | Operator | Action | Command | Outcome / notes |
+|---|---|---|---|---|
+| 2026-11-23T12:40Z | nia | fresh clone + join | `git clone`; `ops ag-operator join --login nia` | stale `operators/nia` from build-v1 (e3102c3, old lineage) moved to `nia.build-v1.stale.20261123T124053Z`; fresh clone at dev 76e9e9f; "nia is ready ... multi_user on" |
+| 2026-11-23T12:44Z | nia | plan + own base | `ag-phase transition . Planning`; `ag-plan-store write plan plan 1` | burst id 5ec0edc1 minted by the transition; plan at `AIGILE_PLAN/current/bursts/5ec0edc1.../round_1/plan.md`, scope `web/**` only; committed 5977f41 |
+| 2026-11-23T12:48Z | nia | **capture-base gate REFUSED** | `ag-phase transition . Producing` | `BURST_BASE_ERROR`: 3 uncommitted ag-init 16.15->16.21 rewrites (CLAUDE.md, BACKLOG.md, .aigile-version) the pack forbids committing. Resolved by stashing exactly those paths - no `--accept-dirty` override, nothing committed that the pack excludes |
+| 2026-11-23T12:50Z | nia | **signed claim** | `ag-phase transition . Producing` | manifest `.aigile/manifests/5977f419...json` + `.events.jsonl`; actor login `nia`, globs `["web/**"]`, sig present. Base unshared, so no manifest collision |
+| 2026-11-23T12:55Z | nia | read before building | (inspect `web/src/`) | statement view ALREADY EXISTS (R21): StatementPane.tsx keyset-paged, `transferErrors.ts` maps code->copy, client.ts is the only fetch site. Added reversal to it; did not rebuild it |
+| 2026-11-23T13:00Z | nia | build web stream | `bunx tsc --noEmit`; `bun run test` | reverse action + `reversalErrors.ts` (code->copy->next action) + `reversalIndex.ts` (which rows are corrections). tsc clean; vitest 52/52 (was 23) |
+| 2026-11-23T13:02Z | nia | **browser verification** | `web/harness/up.sh`; `web/harness/verify.py` (Chromium 1440x900, signed in as alice) | live ledgerd + real SQLite seed. happy path: original struck + "Reversed", correction badged "Reversal" with caption naming the entry it reverses. **403 not-your-account** (Alice cannot authorise Bob's debit), **409 already-reversed** (real stale-tab race, offers Refresh), overdrawing correction. 0 JS errors |
+| 2026-11-23T13:05Z | nia | commit | `ops git commit` | 964ce8c, 12 files, scope `web/**` only |
