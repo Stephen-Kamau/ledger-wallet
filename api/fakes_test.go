@@ -160,6 +160,15 @@ func (t *memTx) FindTransferByID(id string) (core.Transfer, bool, error) {
 	return core.Transfer{}, false, nil
 }
 
+func (t *memTx) FindTransferByPostingID(postingID string) (core.Transfer, bool, error) {
+	for _, p := range t.m.postings {
+		if p.ID == postingID {
+			return t.FindTransferByID(p.TransferID)
+		}
+	}
+	return core.Transfer{}, false, nil
+}
+
 func (t *memTx) InsertTransfer(tr core.Transfer) error {
 	// Assign seq as MAX(seq)+1 per account (D-B1), mirroring the SQLite adapter.
 	for i := range tr.Postings {

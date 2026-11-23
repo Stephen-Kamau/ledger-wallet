@@ -39,6 +39,11 @@ type Tx interface {
 	// Still no update or delete - append-only (R5) is unchanged.
 	FindTransferByID(id string) (Transfer, bool, error)
 
+	// FindTransferByPostingID loads the transfer a POSTING belongs to. A statement
+	// row is a posting, so this is how a reversal driven from the UI resolves the
+	// entry it is correcting (see core/reversal.go). Read-only, like its sibling.
+	FindTransferByPostingID(postingID string) (Transfer, bool, error)
+
 	// Hold surface. ActiveHoldsTotal is the live reserved sum under the write lock;
 	// FindHoldByKey is the idempotency lookup; GetHold loads a hold for release.
 	ActiveHoldsTotal(id AccountID) (Amount, error)

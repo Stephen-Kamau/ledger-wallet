@@ -349,3 +349,52 @@ func TestReverse_RealAdapter_UnknownEntry(t *testing.T) {
 		})
 	}
 }
+
+// The seam the fakes could not see, against real SQLite on both schema sources: the UI
+// reverses a statement ROW, which is a posting, so a posting id must resolve to the
+// entry it is a leg of. Dakari's live e2e found every UI reversal 404ing because this
+// lookup was transfer-id-only; core, api and web tests each passed the id their own
+// layer held, so none of them could fail.
+func TestReverse_RealAdapter_ResolvesAPostingID(t *testing.T) {
+	for _, source := range schemaSources {
+		t.Run(source, func(t *testing.T) {
+			ctx := context.Background()
+			l, store := ledgerOn(t, source)
+			a, b, orig := funded(t, l, 100, 30)
+
+			before := ledgerTotal(t, store)
+			res, err := l.Reverse(ctx, "bob", orig.Postings[0].ID, "rev-1")
+			if err != nil {
+				t.Fatalf("reverse by posting id: %v", err)
+			}
+			if res.Transfer.ID != "rev_"+orig.ID {
+				t.Fatalf("reversal %s not derived from entry %s", res.Transfer.ID, orig.ID)
+			}
+
+			balA, err := l.Balance(ctx, a.ID)
+			if err != nil {
+				t.Fatalf("balance a: %v", err)
+			}
+			balB, err := l.Balance(ctx, b.ID)
+			if err != nil {
+				t.Fatalf("balance b: %v", err)
+			}
+			if balA != 100 || balB != 0 {
+				t.Fatalf("balances not restored: a=%d b=%d", balA, balB)
+			}
+			if after := ledgerTotal(t, store); after != before {
+				t.Fatalf("conservation broken: %d -> %d", before, after)
+			}
+
+			// Either leg, and the transfer id, are all the SAME entry.
+			for _, p := range orig.Postings {
+				if _, err := l.Reverse(ctx, "bob", p.ID, "k-"+p.ID); !errors.Is(err, core.ErrAlreadyReversed) {
+					t.Fatalf("leg %s: got %v, want ErrAlreadyReversed", p.ID, err)
+				}
+			}
+			if _, err := l.Reverse(ctx, "bob", orig.ID, "k-xfer"); !errors.Is(err, core.ErrAlreadyReversed) {
+				t.Fatalf("transfer id: got %v, want ErrAlreadyReversed", err)
+			}
+		})
+	}
+}

@@ -35,3 +35,19 @@ func (t *txn) FindTransferByID(id string) (core.Transfer, bool, error) {
 	tr.Postings = postings
 	return tr, true, nil
 }
+
+// FindTransferByPostingID loads the transfer a posting belongs to, under the held
+// write lock. One indexed hop: postings.transfer_id -> transfers.id. A statement row
+// is a posting, so this is the lookup that lets a reversal be driven from the UI.
+func (t *txn) FindTransferByPostingID(postingID string) (core.Transfer, bool, error) {
+	var transferID string
+	err := t.tx.QueryRowContext(t.ctx,
+		`SELECT transfer_id FROM postings WHERE id = ?`, postingID).Scan(&transferID)
+	if errors.Is(err, sql.ErrNoRows) {
+		return core.Transfer{}, false, nil
+	}
+	if err != nil {
+		return core.Transfer{}, false, fmt.Errorf("find transfer by posting id: %w", err)
+	}
+	return t.FindTransferByID(transferID)
+}

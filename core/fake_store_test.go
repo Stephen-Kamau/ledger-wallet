@@ -167,6 +167,15 @@ func (t *fakeTx) FindTransferByID(id string) (Transfer, bool, error) {
 	return Transfer{}, false, nil
 }
 
+func (t *fakeTx) FindTransferByPostingID(postingID string) (Transfer, bool, error) {
+	for _, p := range t.s.postings {
+		if p.ID == postingID {
+			return t.FindTransferByID(p.TransferID)
+		}
+	}
+	return Transfer{}, false, nil
+}
+
 func (t *fakeTx) InsertTransfer(tr Transfer) error {
 	// Assign seq as MAX(seq)+1 per account, mirroring the adapter (D-B1).
 	for i := range tr.Postings {

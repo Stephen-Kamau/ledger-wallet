@@ -284,3 +284,67 @@ func ledgerSum(s *fakeStore) Amount {
 	}
 	return sum
 }
+
+// The UI reverses a STATEMENT ROW, and a statement row is a posting - `p.id`, the
+// only id StatementPane exposes. Reverse's parameter is called entryID and the route
+// is /entries/{id}/reverse, so a posting id MUST resolve to the entry it is a leg of.
+// Looking it up strictly as a transfer id 404'd every reversal from the real UI;
+// nothing in core's, api's or web's own tests could see it, because each supplied the
+// id its own layer happened to hold.
+func TestReverse_AcceptsAPostingIDOfTheEntry(t *testing.T) {
+	l, _, a, b, orig := reversible(t, 100, 30)
+	ctx := context.Background()
+
+	if len(orig.Postings) == 0 {
+		t.Fatal("original has no postings")
+	}
+	res, err := l.Reverse(ctx, "bob", orig.Postings[0].ID, "rev-1")
+	must(t, err)
+
+	// It reverses the whole entry, not one leg: both balances are restored.
+	balA, err := l.Balance(ctx, a.ID)
+	must(t, err)
+	balB, err := l.Balance(ctx, b.ID)
+	must(t, err)
+	if balA != 100 || balB != 0 {
+		t.Fatalf("reversing by posting id did not restore balances: a=%d b=%d", balA, balB)
+	}
+	// And it is the SAME compensating entry a transfer id would have produced, so the
+	// at-most-one-reversal guarantee is keyed per entry, not per id spelling.
+	if res.Transfer.ID != "rev_"+orig.ID {
+		t.Fatalf("reversal id %s is not derived from the entry %s", res.Transfer.ID, orig.ID)
+	}
+}
+
+// The two legs of one entry are one entry: reversing via either posting id, after the
+// entry is already reversed, is the typed conflict - never a second compensating entry.
+func TestReverse_EitherLegIsTheSameEntry(t *testing.T) {
+	l, store, _, _, orig := reversible(t, 100, 30)
+	ctx := context.Background()
+
+	if _, err := l.Reverse(ctx, "bob", orig.Postings[0].ID, "rev-1"); err != nil {
+		t.Fatalf("reverse by first leg: %v", err)
+	}
+	count := len(store.postings)
+
+	for i, p := range orig.Postings {
+		if _, err := l.Reverse(ctx, "bob", p.ID, "rev-leg-"+p.ID); !errors.Is(err, ErrAlreadyReversed) {
+			t.Fatalf("leg %d (%s): got %v, want ErrAlreadyReversed", i, p.ID, err)
+		}
+	}
+	if _, err := l.Reverse(ctx, "bob", orig.ID, "rev-xfer"); !errors.Is(err, ErrAlreadyReversed) {
+		t.Fatalf("by transfer id: got %v, want ErrAlreadyReversed", err)
+	}
+	if len(store.postings) != count {
+		t.Fatalf("a refused reversal wrote postings")
+	}
+}
+
+// A posting id that belongs to no entry is still the typed not-found.
+func TestReverse_UnknownPostingIDIsTypedNotFound(t *testing.T) {
+	l, _, _, _, _ := reversible(t, 100, 30)
+	_, err := l.Reverse(context.Background(), "bob", "post_does_not_exist", "rev-1")
+	if !errors.Is(err, ErrEntryNotFound) {
+		t.Fatalf("got %v, want ErrEntryNotFound", err)
+	}
+}

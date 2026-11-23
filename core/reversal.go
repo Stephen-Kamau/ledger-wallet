@@ -37,22 +37,7 @@ func (l *ledger) Reverse(ctx context.Context, authorizer PrincipalID, entryID st
 
 	var result TransferResult
 	err := l.store.InTx(ctx, func(tx Tx) error {
-		// R4: a replayed key returns the original reversal and posts nothing. This
-		// runs first so a retry is cheap and can never double-post.
-		prior, ok, err := tx.FindTransferByKey(authorizer, idempotencyKey)
-		if err != nil {
-			return err
-		}
-		if ok {
-			if prior.ID != reversalID(entryID) {
-				// The same key was already used for a different entry (R4).
-				return ErrIdempotencyConflict
-			}
-			result = TransferResult{Transfer: prior, Replayed: true}
-			return nil
-		}
-
-		original, ok, err := tx.FindTransferByID(entryID)
+		original, ok, err := resolveEntry(tx, entryID)
 		if err != nil {
 			return err
 		}
@@ -60,8 +45,33 @@ func (l *ledger) Reverse(ctx context.Context, authorizer PrincipalID, entryID st
 			return ErrEntryNotFound
 		}
 
-		// R13: one entry, at most one compensating entry.
-		if _, reversed, err := tx.FindTransferByID(reversalID(entryID)); err != nil {
+		// R4 BEFORE the already-reversed check, and the order is load-bearing: a
+		// retry of the same call reverses an entry that is BY DEFINITION already
+		// reversed, so checking R13 first turns every legitimate replay into a
+		// spurious already_reversed. Caught by TestReverse_R4_IdempotentReplay when
+		// posting-id resolution moved this block.
+		//
+		// A replayed key returns the original reversal and posts nothing. This is
+		// compared against the RESOLVED entry, so replaying a key with the posting id
+		// when the first call used the transfer id (or the other leg) is the same
+		// replay, not a conflict.
+		prior, pok, perr := tx.FindTransferByKey(authorizer, idempotencyKey)
+		if perr != nil {
+			return perr
+		}
+		if pok {
+			if prior.ID != reversalID(original.ID) {
+				// The same key was already used for a different entry (R4).
+				return ErrIdempotencyConflict
+			}
+			result = TransferResult{Transfer: prior, Replayed: true}
+			return nil
+		}
+
+		// R13: one entry, at most one compensating entry. Keyed on the resolved
+		// TRANSFER id, never on the id the caller happened to pass, so reversing via
+		// either leg's posting id - or via the transfer id - is one guarantee.
+		if _, reversed, err := tx.FindTransferByID(reversalID(original.ID)); err != nil {
 			return err
 		} else if reversed {
 			return ErrAlreadyReversed
@@ -119,6 +129,22 @@ func (l *ledger) Reverse(ctx context.Context, authorizer PrincipalID, entryID st
 		return TransferResult{}, err
 	}
 	return result, nil
+}
+
+// resolveEntry finds the entry `id` names. The route is /entries/{id}/reverse and the
+// parameter is entryID, but a statement ROW is a posting, so the UI holds a posting id
+// and nothing else: `p.id` is the only id StatementPane exposes. Accepting only a
+// transfer id 404'd every reversal driven from the real UI, and no single layer's tests
+// could see it - core passed transfer ids to itself, api used a configured fake, web
+// used a stub. So both spellings resolve to the same entry here.
+//
+// A transfer id is tried first because it is the exact-identity case; the ids are
+// prefixed (`xfer_`, `post_`) so the two namespaces cannot collide anyway.
+func resolveEntry(tx Tx, id string) (Transfer, bool, error) {
+	if t, ok, err := tx.FindTransferByID(id); err != nil || ok {
+		return t, ok, err
+	}
+	return tx.FindTransferByPostingID(id)
 }
 
 // mirror turns the original postings into the compensating legs: the same accounts,
