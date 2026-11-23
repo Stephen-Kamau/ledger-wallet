@@ -20,9 +20,26 @@ import (
 // The api layer does NOT pre-check ownership here; that check belongs behind the
 // interface.
 
-// reverseEntry: POST /entries/{id}/reverse → Ledger.Reverse. The entry id is the
-// path param; the Idempotency-Key header is required, as it is for every other
-// write. A replay returns the original compensating entry with 200 and no second
+// reverseEntry: POST /entries/{id}/reverse → Ledger.Reverse.
+//
+// WHAT {id} ACCEPTS, AND WHAT GETS REVERSED. An "entry" is a LEG of a transfer
+// (core.Entry, 00-core.md §106), and a statement row IS a leg, so {id} is a
+// POSTING id - the id a statement row carries and the one a client naturally
+// holds. core also accepts the transfer id and resolves either to the same entry.
+//
+// Reversing a LEG reverses that leg's WHOLE TRANSFER. That follows from R1 - the
+// legs of a transfer must net to zero, so half a reversal is not a representable
+// correction - but it is surprising from a route whose id names one leg, which is
+// why it is stated here where a caller reads it rather than left to be inferred.
+// There is at most one reversal per transfer, keyed on the RESOLVED transfer, so
+// reversing via either leg or via the transfer id is one entry and one guarantee.
+//
+// This endpoint 404'd on every real request until core learned to resolve a posting
+// id (fixed in core, found by the live e2e): the route said "entries", core accepted
+// only transfer ids, and no layer's own tests could see the gap because each one
+// supplied the id it happened to hold.
+//
+// The Idempotency-Key header is required, as it is for every other write. A replay returns the original compensating entry with 200 and no second
 // posting; a first write is 201. An entry that is already reversed is a typed 409
 // (already_reversed) through coreErrorMap - never a bare 500 (R13).
 func (h *Handler) reverseEntry(w http.ResponseWriter, r *http.Request) {
