@@ -144,6 +144,22 @@ func (t *memTx) FindTransferByKey(owner core.PrincipalID, key string) (core.Tran
 	return tr, ok, nil
 }
 
+func (t *memTx) FindTransferByID(id string) (core.Transfer, bool, error) {
+	for _, tr := range t.m.transfers {
+		if tr.ID == id {
+			var ps []core.Posting
+			for _, p := range t.m.postings {
+				if p.TransferID == id {
+					ps = append(ps, p)
+				}
+			}
+			tr.Postings = ps
+			return tr, true, nil
+		}
+	}
+	return core.Transfer{}, false, nil
+}
+
 func (t *memTx) InsertTransfer(tr core.Transfer) error {
 	// Assign seq as MAX(seq)+1 per account (D-B1), mirroring the SQLite adapter.
 	for i := range tr.Postings {
@@ -209,6 +225,8 @@ type fakeLedger struct {
 	releaseErr    error
 	available     core.Amount
 	availErr      error
+	reverseResult core.TransferResult
+	reverseErr    error
 }
 
 func (f *fakeLedger) CreateAccount(ctx context.Context, cmd core.CreateAccountCmd) (core.Account, error) {
@@ -257,4 +275,8 @@ func (f *fakeLedger) ReleaseHold(ctx context.Context, authorizer core.PrincipalI
 
 func (f *fakeLedger) AvailableBalance(ctx context.Context, id core.AccountID) (core.Amount, error) {
 	return f.available, f.availErr
+}
+
+func (f *fakeLedger) Reverse(ctx context.Context, authorizer core.PrincipalID, entryID string, idempotencyKey string) (core.TransferResult, error) {
+	return f.reverseResult, f.reverseErr
 }

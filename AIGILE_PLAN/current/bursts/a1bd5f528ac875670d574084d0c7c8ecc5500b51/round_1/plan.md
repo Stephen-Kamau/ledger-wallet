@@ -26,6 +26,7 @@ declared below rather than written outside the claim.
   - `core/fake_store_test.go`
   - `internal/sqlite/reversal.go` (new)
   - `internal/sqlite/reversal_test.go` (new)
+  - `api/fakes_test.go` (compile-unblock only)
 
 ## Design
 
@@ -49,9 +50,13 @@ enforce R7.
 ## Known cross-stream effect
 
 Adding a method to `core.Ledger` and `core.Tx` breaks every implementer at compile time,
-including `api/fakes_test.go` (`fakeLedger`, `memTx`) which is dakari's file and NOT
-claimed here. `go build ./...` is unaffected; `go test ./api/...` cannot compile until
-dakari's side lands. Reported rather than silently patched.
+including `api/fakes_test.go` (`fakeLedger`, `memTx`), which is dakari's file. `go build
+./...` is unaffected; only `go test ./api/...` cannot compile.
+
+Leaving `dev` un-compilable would block all four other operators, so this stream claims
+`api/fakes_test.go` for a PURELY ADDITIVE compile-unblock: two fake methods in dakari's
+existing style, no existing line changed. It is dakari's to replace with the real
+behaviour - fold theirs in over this, never revert theirs to keep this.
 
 ## Verification
 
