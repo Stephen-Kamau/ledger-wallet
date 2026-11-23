@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.16.0",
+  "aigile_version": "16.21",
+  "canonical_pin": "unpinned",
+  "canonical_install": {
+    "mode": "develop",
+    "version": "16.21",
+    "source_commit": "83412dc98cb3cd3c6fca7bcf8de93ef4d5cc4afb",
+    "dirty": 0
+  },
+  "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+  "managed_block_state": "present",
+  "model_config": null,
+  "burst_sha": "26479e742078400a2872b17c33d71bcd7a1ea30f",
+  "project_slug": "ledger-wallet",
+  "burst_label": null,
+  "orchestrator": {
+    "name": "Dakari Mwangi",
+    "email": "dakari@ledger.test"
+  },
+  "status": "in-flight",
+  "started_at": "2026-11-23T12:46:05Z",
+  "finalised_at": null,
+  "primary_usage": null,
+  "phases": [
+    {
+      "name": "Producing",
+      "entered_at": "2026-11-23T12:51:09Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.21",
+        "source_commit": "83412dc98cb3cd3c6fca7bcf8de93ef4d5cc4afb",
+        "dirty": 0
+      },
+      "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+      "managed_block_state": "present"
+    }
+  ],
+  "streams": [],
+  "stream_dependency_edges": [],
+  "builder_declarations": [],
+  "builder_terminal_invocations": [],
+  "governance_invocations": [],
+  "ship_fallback_authorizations": [],
+  "archive_locator": null,
+  "archive_receipts": [],
+  "refreezes": [],
+  "reviews": {},
+  "contributors": [],
+  "diff_stat": null,
+  "token_economics": null,
+  "test_economics": null
+}

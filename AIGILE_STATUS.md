@@ -4,9 +4,13 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 ## Current state
 
-**Phase:** Planning
+**Phase:** Producing
 **Active burst:** None
-**Burst base:** 29bfb97ef68b929a66b087a18db0572bc1919ada
+**Burst base:** 26479e742078400a2872b17c33d71bcd7a1ea30f
+
+<!-- Per-operator burst bases, same last-writer caveat as the burst id above.         -->
+<!--   kofi   29bfb97ef68b929a66b087a18db0572bc1919ada                                -->
+<!--   dakari 26479e742078400a2872b17c33d71bcd7a1ea30f                                -->
 **Plan reference:** None
 **Next action:** kofi stream landed (0fb6617). Awaiting dakari's POST /entries/{id}/reverse; then zola re-reviews the full burst diff.
 **Last updated:** [YYYY-MM-DD]
