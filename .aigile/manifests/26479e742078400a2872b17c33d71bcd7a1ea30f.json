@@ -42,7 +42,10 @@
   "builder_terminal_invocations": [],
   "governance_invocations": [],
   "ship_fallback_authorizations": [],
-  "archive_locator": null,
+  "archive_locator": {
+    "path": "AIGILE_PLAN/closed/2026-11-23-reversals-26479e7",
+    "recorded_at": "2026-11-23T20:51:21Z"
+  },
   "archive_receipts": [],
   "refreezes": [],
   "reviews": {},
