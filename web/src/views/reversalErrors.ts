@@ -58,12 +58,19 @@ export const REVERSAL_ERRORS: Record<string, ReversalErrorSpec> = {
     msg: "This entry has already been reversed. The correction is already on this statement — refresh to see it. Nothing was posted twice.",
   },
 
-  // 403 — we know who you are; this row is simply not yours to correct. NOT re-auth:
+  // 403 — we know who you are; you just cannot authorise THIS debit. NOT re-auth:
   // signing in again cannot change the answer (§3.2).
+  //
+  // The reason is not that the row is not yours. On your own statement it IS yours.
+  // The compensating entry debits where the money WENT (core/reversal.go:72-78 reads
+  // `original.To` and compares its owner to the authorizer), so R7 binds on the
+  // destination. Alice pays Bob -> only BOB can authorise giving it back. The earlier
+  // copy said "this entry belongs to an account you do not own", which is false in the
+  // exact case it renders in: Alice is looking at her own account.
   unauthorized: {
     at: { row: true },
     action: "none",
-    msg: "This entry belongs to an account you do not own, so you cannot reverse it. Ask that account's owner to post the correction.",
+    msg: "The money from this entry went to an account you do not own, and reversing it would take the money back out of that account. Only its owner can do that — ask them to post the reversal.",
   },
 
   // 404 — the entry is not on this account any more (or never was). The statement in
@@ -79,40 +86,47 @@ export const REVERSAL_ERRORS: Record<string, ReversalErrorSpec> = {
     msg: "That account is not available any more. Refresh, or pick another account.",
   },
 
-  // 409 / 422 — the compensating transfer was itself rejected by an invariant, AFTER the
-  // reversal claim committed. Two facts the copy must carry, and the second is the one
-  // that was missing: no money moved, AND a later attempt will not succeed either.
+  // 409 / 422 — the compensating entry was rejected by an invariant, and NOTHING was
+  // written. core.Reverse does the replay check, the already-reversed check, the
+  // authorisation check, the balance check and the INSERT inside ONE transaction
+  // (core/reversal.go:39 `l.store.InTx`), so a rejection rolls the whole thing back.
   //
-  // Reversal is claim-then-settle across two transactions, because `core` has no `Reverse`
-  // seam that writes the claim and the compensating postings together. The claim row is
-  // inserted and committed first; if the compensating transfer then fails, the claim is
-  // left behind unsettled, and migrations/0004_reversals.sql `UNIQUE (original_transfer_id)`
-  // rejects every future reversal of that entry. Nothing currently deletes the stranded
-  // claim.
+  // This copy was wrong twice, in opposite directions, and both are worth stating.
+  // First it said only "the entry was not reversed", which reads as "try again later".
+  // Review (C5) showed reversal was claim-then-settle at the time, so a rejected leg
+  // stranded a committed claim and `UNIQUE (original_transfer_id)` then blocked every
+  // later attempt — the retry was a promise the schema had revoked. The copy was
+  // changed to say the entry could never be reversed again.
   //
-  // So the earlier copy — "The entry was not reversed" — was read as "try again later",
-  // which the schema has permanently revoked. Promising retriability the system cannot
-  // honour is worse than naming the dead end. Caught in review (C5, burst `reversals`);
-  // the seam fix itself is core/api work, outside this stream's scope.
+  // core.Ledger.Reverse then landed atomic, and the reversals table is deliberately
+  // unwired, so there is no claim to strand: the entry IS still reversible and the
+  // second wording became the lie. Verified, not taken on report — core/reversal.go
+  // holds everything in one InTx, and `grep -rn reversals internal/sqlite/*.go core/*.go`
+  // (non-test) is empty.
+  //
+  // So: no money moved, and a retry is honest once the underlying reason clears.
   insufficient_funds: {
     at: { row: true },
-    action: "none",
-    msg: "Reversing this entry would overdraw the account the money has to come back out of. No money moved. This entry cannot be reversed again — post a correcting transfer instead.",
+    action: "retry",
+    msg: "Reversing this entry would overdraw the account the money has to come back out of. No money moved. You can try again once that account has the funds.",
   },
   currency_mismatch: {
     at: { row: true },
     action: "none",
-    msg: "This entry's accounts no longer share one currency, so it cannot be reversed automatically. No money moved, and this entry cannot be reversed again — post a correcting transfer instead.",
+    msg: "This entry's accounts no longer share one currency, so it cannot be reversed automatically. No money moved. Post a correcting transfer instead.",
   },
+  // 422 — core refuses to compensate an entry whose own legs do not net to zero
+  // (core/reversal.go:146-162). Posting a second unbalanced entry on top would be worse,
+  // so there is nothing the user can retry into.
   unbalanced: {
     at: { row: true },
-    action: "retry",
-    msg: "The correction did not balance, so nothing was posted. Try again.",
+    action: "none",
+    msg: "This entry's own legs do not add up, so it cannot be reversed automatically. No money moved. This one needs a manual correction.",
   },
   invalid_account: {
     at: { row: true },
     action: "none",
-    msg: "One of the accounts on this entry is no longer valid, so the correction cannot be posted. No money moved, and this entry cannot be reversed again — post a correcting transfer instead.",
+    msg: "One of the accounts on this entry is no longer valid, so the correction cannot be posted. No money moved. Post a correcting transfer instead.",
   },
 
   // 409 — our own idempotency key collided with a different intent. A client bug, but

@@ -2,10 +2,16 @@
 // retry of that intent (R4).
 //
 // WHAT ACTUALLY GUARANTEES NO DOUBLE REVERSAL — and it is not this file.
-// `migrations/0004_reversals.sql` carries `UNIQUE (original_transfer_id)`. That constraint
-// makes a second correction for the same entry structurally impossible, whatever key is
-// sent; kofi's TestR18 proves it with deliberately distinct keys. Naming the key as the
-// guard, as an earlier version of this comment did, credits the wrong mechanism.
+// The compensating entry's id is DERIVED from the original: `rev_<entryID>`
+// (core/reversal.go:18-24). A second reversal of the same entry is refused by the
+// in-transaction check at core/reversal.go:64-68 and, if two writers raced past it, by
+// the transfers primary key. No key is involved, so a fresh one cannot defeat it.
+//
+// This comment has named the wrong mechanism twice. It first credited the idempotency
+// key; corrected to `UNIQUE (original_transfer_id)` in kofi's migration — but that table
+// is deliberately unwired by Orchestrator decision and nothing writes to it
+// (`grep -rn reversals internal/sqlite/*.go core/*.go`, non-test, is empty). The derived
+// id is the real guard. Verified in core/reversal.go, not taken from a report.
 //
 // WHY THIS FILE STILL EARNS ITS KEEP. The first cut called
 // `client.reverseEntry(entryId, newIdempotencyKey())`, minting a fresh key per CALL while

@@ -95,6 +95,23 @@ async function proxy(req, url) {
 }
 
 // --- the one stubbed endpoint -------------------------------------------------
+// Rewritten against the LANDED core.Ledger.Reverse (core/reversal.go), not against the
+// shape this stream guessed. zola's round-1 C3 was that the stub was self-confirming: it
+// returned the same codes the UI expected because both came from the same guess. These
+// rules are now read off core, so a UI mismatch would actually show up here:
+//
+//   core/reversal.go:18-24  the compensating entry's id is DERIVED: rev_<entryID>, and
+//                           that is what makes "already reversed" a lookup, not a key check
+//   core/reversal.go:64-68  already-reversed -> ErrAlreadyReversed
+//   core/reversal.go:72-78  the authorizer must own original.To — where the money WENT —
+//                           NOT the account the row sits on. This stub had that wrong.
+//   core/reversal.go:21-23  reversing a reversal IS allowed; it is a distinct entry
+//
+// It is still a stub: dakari's POST /entries/{id}/reverse does not exist, so the mandatory
+// live reversal e2e remains unrun (C3). Delete this file when the route lands.
+const REVERSAL_PREFIX = "rev_"; // core/reversal.go reversalPrefix
+const reversalIdFor = (transferId) => REVERSAL_PREFIX + transferId;
+
 async function reverse(req, entryId) {
   const token = bearer(req);
   if (token === null) return jsonRes(401, errBody("unauthenticated", "missing bearer token"));
@@ -104,23 +121,24 @@ async function reverse(req, entryId) {
     return jsonRes(404, errBody("entry_not_found", "no such entry on this account"));
   }
 
-  // Ownership: ask the ledger, do not decide here. A non-owned account reads 404 (D-D1);
-  // the reverse ACTION turns that into the 403 the brief specifies, because on a write we
-  // are telling the caller they may not do this, not that it does not exist.
-  const own = await fetch(`${LEDGERD}/accounts/${encodeURIComponent(entry.account_id)}`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (own.status === 404 || own.status === 403) {
-    return jsonRes(403, errBody("unauthorized", "you do not own the account this entry belongs to"));
-  }
-
-  if (reversedBy.has(entryId)) {
-    return jsonRes(409, errBody("already_reversed", "this entry has already been reversed"));
-  }
-
   const original = transfers.get(entry.transfer_id);
   if (original === undefined) {
     return jsonRes(422, errBody("unprocessable_entity", "the original transfer is not known to the stub"));
+  }
+
+  // Already reversed, keyed on the DERIVED id the way core does it.
+  if (transfers.has(reversalIdFor(entry.transfer_id)) || reversedBy.has(entryId)) {
+    return jsonRes(409, errBody("already_reversed", "this entry has already been reversed"));
+  }
+
+  // R7 binds on the DEBITED account, which is the original's destination. Asked of the
+  // ledger rather than decided here: a non-owned read is 404 (D-D1), and the reverse
+  // ACTION turns that into 403, because we are telling the caller they may not do this.
+  const own = await fetch(`${LEDGERD}/accounts/${encodeURIComponent(original.to)}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (own.status === 404 || own.status === 403) {
+    return jsonRes(403, errBody("unauthorized", "you do not own the account this reversal would debit"));
   }
 
   // The compensating transfer: the same money, the other way, authorised by the caller.

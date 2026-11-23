@@ -46,12 +46,16 @@ describe("the two failures the brief names", () => {
     expect(m.message).toContain("Nothing was posted twice");
   });
 
-  it("403 not-your-account explains ownership and offers no retry", () => {
+  it("403 names the DESTINATION as the reason, not the row's own account", () => {
+    // R7 binds on the account being debited, which is where the money WENT
+    // (core/reversal.go:72-78). On her own statement Alice DOES own the row's account,
+    // so "this entry belongs to an account you do not own" was false exactly here.
     const m = mapReversalError(err("unauthorized", 403));
     expect(m.placement).toBe("row");
     expect(m.action).toBe("none");
     expect(m.reauth).toBe(false);
-    expect(m.message).toContain("do not own");
+    expect(m.message).toContain("went to an account you do not own");
+    expect(m.message).not.toContain("This entry belongs to an account you do not own");
   });
 
   it("403 is NOT re-auth — signing in again cannot make the row yours", () => {
@@ -97,17 +101,19 @@ describe("an unknown outcome is reported as UNCONFIRMED, never as 'not reversed'
     expect(unconfirmedOutcome("").message).toContain("cannot confirm");
   });
 
-  it("a compensating-leg rejection says no money moved AND does not promise a retry (C5)", () => {
-    // The claim row commits before the compensating transfer runs, so one of these
-    // strands the claim and UNIQUE (original_transfer_id) blocks every later attempt.
-    // Saying only "the entry was not reversed" reads as "try again later" — which the
-    // schema has permanently revoked.
+  it("a rejected compensating entry says no money moved and never claims a dead end", () => {
+    // core.Reverse is ONE transaction (core/reversal.go:39), so a rejection writes
+    // nothing and the entry stays reversible. Claiming "cannot be reversed again" was
+    // true only while reversal was claim-then-settle; it is now false.
     for (const code of ["insufficient_funds", "currency_mismatch", "invalid_account"]) {
       const m = mapReversalError(err(code));
       expect(m.message, code).toMatch(/[Nn]o money moved/);
-      expect(m.message, code).toContain("cannot be reversed again");
-      expect(m.action, code).toBe("none");
+      expect(m.message, code).not.toContain("cannot be reversed again");
     }
+  });
+
+  it("insufficient_funds offers a retry, because the funds can arrive later", () => {
+    expect(mapReversalError(err("insufficient_funds", 409)).action).toBe("retry");
   });
 
   it("never leaks the raw server sentence for a mapped code", () => {
@@ -126,8 +132,32 @@ describe("reversal copy differs from transfer copy where the meaning differs", (
     expect(mapReversalError(err("unauthorized", 403)).message).not.toContain("account id");
   });
 
+  it("every code core.Reverse can return is mapped (verified against core/reversal.go)", () => {
+    // ErrEntryNotFound, ErrAlreadyReversed, ErrUnauthorized, ErrInsufficientFunds,
+    // ErrIdempotencyConflict, ErrUnbalanced, ErrAccountNotFound.
+    for (const code of [
+      "entry_not_found",
+      "already_reversed",
+      "unauthorized",
+      "insufficient_funds",
+      "idempotency_conflict",
+      "unbalanced",
+      "account_not_found",
+    ]) {
+      expect(REVERSAL_ERRORS[canonicalReversalCode(code)], code).toBeDefined();
+    }
+  });
+
   it("insufficient_funds states that no money moved", () => {
     const m = mapReversalError(err("insufficient_funds", 409));
     expect(m.message).toContain("No money moved");
+  });
+
+  it("maps entry_not_found, and does NOT alias transfer_not_found onto it", () => {
+    // core emits entry_not_found. transfer_not_found is deliberately absent: an alias
+    // that silently absorbed a code core never sends would hide a real seam mismatch.
+    expect(REVERSAL_ERRORS["entry_not_found"]).toBeDefined();
+    expect(canonicalReversalCode("transfer_not_found")).toBe("transfer_not_found");
+    expect(REVERSAL_ERRORS[canonicalReversalCode("transfer_not_found")]).toBeUndefined();
   });
 });

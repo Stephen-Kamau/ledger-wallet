@@ -132,8 +132,8 @@ export function StatementPane({
         // One idempotency key per reversal INTENT (R4), held in `intents` and REUSED by
         // every retry of this entry, so a retried reverse replays the original correction
         // rather than arriving as a fresh intent. The guarantee that a second correction
-        // can never post is `UNIQUE (original_transfer_id)` in migrations/0004_reversals.sql,
-        // NOT this key — see ./reversalIntent for the distinction.
+        // can never post is the DERIVED id `rev_<entryID>` (core/reversal.go:18-24), NOT
+        // this key — see ./reversalIntent for the distinction.
         const body = await client.reverseEntry(entryId, intents.current.keyFor(entryId));
         setLocalReversals((prev) => [
           ...prev,

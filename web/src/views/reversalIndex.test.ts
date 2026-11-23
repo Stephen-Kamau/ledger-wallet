@@ -90,8 +90,10 @@ describe("canReverse offers the action exactly where it can succeed", () => {
   it("withholds it on an entry already reversed (that would only buy a 409)", () => {
     expect(canReverse({ kind: "reversed", byEntryId: "pst_2" }, row)).toBe(false);
   });
-  it("withholds it on a correction row (no double negatives)", () => {
-    expect(canReverse({ kind: "reversal", ofEntryId: "pst_1" }, row)).toBe(false);
+  it("OFFERS it on a correction row — core allows reversing a reversal", () => {
+    // core/reversal.go:21-23: the derived id applied to a reversal's own id is "a
+    // DISTINCT entry and a legitimate correction of a correction, so it is allowed".
+    expect(canReverse({ kind: "reversal", ofEntryId: "pst_1" }, row)).toBe(true);
   });
 });
 

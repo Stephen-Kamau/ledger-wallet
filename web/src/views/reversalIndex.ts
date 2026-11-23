@@ -91,18 +91,22 @@ export function reversalStateFor(index: ReversalIndex, row: Posting): RowReversa
   return index.get(row.id) ?? { kind: "plain" };
 }
 
-// canReverse decides whether to offer the action at all. Three rules, and no more —
-// every other rejection belongs to the server, and inventing a fourth client-side rule
-// would mean disabling a button for a reason the API does not actually hold.
+// canReverse decides whether to offer the action at all. TWO rules, and no more — every
+// other rejection belongs to the server, and inventing a client-side rule means disabling
+// a button for a reason the API does not actually hold.
 //
 //   - no id: nothing to address the call to.
-//   - already reversed: the correction exists; offering Reverse again only buys a 409.
-//   - a reversal row: reversing a correction is a real operation the server may well
-//     allow, but it is not one this UI invites by default — the honest move there is a
-//     fresh transfer the user can explain, not a double negative.
+//   - already reversed: `rev_<id>` exists, so core returns ErrAlreadyReversed
+//     (core/reversal.go:64-68); offering Reverse again only buys a 409.
+//
+// A REVERSAL row is reversible, and the third rule that used to withhold it here was
+// exactly the UI lie this comment warns about. core/reversal.go:21-23 is explicit: the
+// derived id is applied to a reversal's own id, "that is a DISTINCT entry and a
+// legitimate correction of a correction, so it is allowed". Guessing "no double
+// negatives" disabled an operation the ledger supports.
 export function canReverse(state: RowReversalState, row: Posting): boolean {
   if (row.id === undefined) return false;
-  return state.kind === "plain";
+  return state.kind !== "reversed";
 }
 
 // reversalLabel is the short badge text for a row. Kept here, not in the component, so
