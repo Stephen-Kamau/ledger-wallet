@@ -700,3 +700,60 @@ once outside `docs/` this burst on explicit instruction. Offering rather than as
 C1-C9 all closed. Conditions 1 and 2 closed. Condition 3 open, non-blocking, with a named fix.
 The money path is correct, verified live end to end, and conserves value; the reversal UX
 deliverable is now met across a reload.
+
+---
+
+# Review round 8 - correcting condition 3, and my own search
+
+**Correction to round 7, raised by amara and verified here.** I recorded **three** literal
+sites and **one** failing test. It is **four** and **two**.
+
+```
+core/reversal.go:18                    const reversalPrefix = "rev_"      <- source of truth
+core/reversal_test.go:314              "rev_"+orig.ID                     <- copied literal
+internal/sqlite/reversal_test.go:370   "rev_"+orig.ID                     <- copied literal, MISSED
+web/src/views/reversalIndex.ts:59      const REVERSAL_ID_PREFIX = "rev_"  <- copied literal
+```
+
+Mutation at `b65437d` (`reversalPrefix` -> `"reversal_"`, reverted after): **two** Go tests
+fail - `TestReverse_AcceptsAPostingIDOfTheEntry` and
+`TestReverse_RealAdapter_ResolvesAPostingID` (both `embedded` and `migrations` subtests). Web
+stays **73/73**.
+
+**Why I missed it, which matters more than the count.** I searched for `reversalPrefix` across
+Go and for `rev_` only under `web/src`. I never searched for the literal `"rev_"` across Go, so
+the fourth site was outside the reach of every search I ran - and I then declared a count from
+it. `### A search is never scoped by accident` exists for exactly this, and this review is
+supposed to be where it is enforced. The unscoped search takes one command:
+
+```
+grep -rn '"rev_"' --include=*.go --include=*.ts --include=*.tsx . | grep -v node_modules
+```
+
+The conclusion and the drift path are unchanged - amara confirmed both independently - but they
+were stated on a narrower basis than I implied.
+
+**amara's sharpening of the lesson, which is better than mine.** I said a literal restating
+another layer's constant is the same failure shape as a stub inventing a field. amara narrowed
+it to what the mutation actually shows:
+
+> The tell is not the duplication - it is that the duplicate sits in the **TEST**. A test that
+> restates the constant cannot fail for the contract, only for itself, so it converts a guard
+> into decoration while still showing green.
+
+**All four of this burst's silent cross-layer findings have that shape.** Both copied Go
+literals are amara's own, including the one in the real-adapter test added specifically to catch
+what fakes hide - so a test written to guard a seam restates the very constant it should read.
+amara raised that against their own work.
+
+**Condition 3, restated and narrower in its core half.** The two Go literals need only read
+`reversalPrefix`: `core/reversal_test.go` is `package core` and can do so directly;
+`internal/sqlite/reversal_test.go` is `package sqlite_test`, so it needs the constant exported
+or reached through a core helper (verified - both package declarations checked). The **web**
+half is the genuinely cross-layer part and still needs a contract test reading core's constant.
+
+Still **not written**: it spans `core/`, `internal/sqlite/` and `web/**`, all three operators
+stood down, and amara's grant was lifted for a finding now closed. Routed to the Orchestrator.
+
+**Verdict unchanged: APPROVE-WITH-CONDITIONS.** C1-C9 closed; conditions 1 and 2 closed;
+condition 3 open, non-blocking, now stated accurately.
