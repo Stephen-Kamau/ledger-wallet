@@ -1,9 +1,6 @@
 package core
 
-import (
-	"context"
-	"strings"
-)
+import "context"
 
 // reversalPrefix tags the DERIVED id of a compensating entry. The reversal of
 // transfer X is always written with id reversalPrefix+X, which makes "has this
@@ -20,13 +17,11 @@ import (
 // no second schema source, no drift.
 const reversalPrefix = "rev_"
 
-// reversalID is the derived id of the compensating entry for entryID.
+// reversalID is the derived id of the compensating entry for entryID. Applying it
+// to a reversal's own id is how reversing a reversal works: that is a DISTINCT
+// entry and a legitimate correction of a correction, so it is allowed, while a
+// second reversal of the SAME entry collides and is refused.
 func reversalID(entryID string) string { return reversalPrefix + entryID }
-
-// isReversal reports whether id is itself a compensating entry. Reversing a
-// reversal is allowed - it is a distinct entry and a legitimate correction of a
-// correction - so this is not a rejection, only a description.
-func isReversal(id string) bool { return strings.HasPrefix(id, reversalPrefix) }
 
 // Reverse posts a compensating entry that mirrors entryID's postings (R5).
 //
@@ -87,12 +82,28 @@ func (l *ledger) Reverse(ctx context.Context, authorizer PrincipalID, entryID st
 			return err
 		}
 
-		if !debited.AllowNegative { // R3, on the live balance under the write lock
-			bal, berr := tx.Balance(original.To)
+		// R3, on live balances under the held write lock. Checked PER DEBITED
+		// ACCOUNT rather than by applying the whole debit total to original.To:
+		// mirror() is written over arbitrary postings, so for an entry with more
+		// than two legs a single combined check would charge one account for every
+		// other account's debit. Today every entry has exactly two legs and the two
+		// forms agree; this one keeps agreeing if that changes.
+		for account, delta := range netByAccount(entries) {
+			if delta >= 0 {
+				continue // a credit never needs funding
+			}
+			acct, aerr := tx.GetAccount(account)
+			if aerr != nil {
+				return aerr
+			}
+			if acct.AllowNegative {
+				continue
+			}
+			bal, berr := tx.Balance(account)
 			if berr != nil {
 				return berr
 			}
-			if bal+debitLeg(entries) < 0 {
+			if bal+delta < 0 {
 				return ErrInsufficientFunds
 			}
 		}
@@ -120,6 +131,16 @@ func mirror(postings []Posting) []Entry {
 		entries = append(entries, Entry{Account: p.Account, Amount: -p.Amount})
 	}
 	return entries
+}
+
+// netByAccount collapses entries to one signed total per account, so a
+// sufficiency check looks at what each account is actually losing.
+func netByAccount(entries []Entry) map[AccountID]Amount {
+	net := make(map[AccountID]Amount, len(entries))
+	for _, e := range entries {
+		net[e.Account] += e.Amount
+	}
+	return net
 }
 
 // assertBalanced enforces R1 on a set of entries. The mirror of a balanced set is
