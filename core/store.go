@@ -33,6 +33,12 @@ type Tx interface {
 	FindTransferByKey(owner PrincipalID, key string) (Transfer, bool, error) // R4 lookup
 	InsertTransfer(t Transfer) error                                         // writes transfer + postings atomically
 
+	// FindTransferByID loads a transfer and its postings by id, under the write
+	// lock. Reversal needs it twice: to read the entry being compensated, and to
+	// detect an existing compensating entry by its derived id (see core/reversal.go).
+	// Still no update or delete - append-only (R5) is unchanged.
+	FindTransferByID(id string) (Transfer, bool, error)
+
 	// Hold surface. ActiveHoldsTotal is the live reserved sum under the write lock;
 	// FindHoldByKey is the idempotency lookup; GetHold loads a hold for release.
 	ActiveHoldsTotal(id AccountID) (Amount, error)

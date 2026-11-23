@@ -149,6 +149,24 @@ func (t *fakeTx) FindTransferByKey(owner PrincipalID, key string) (Transfer, boo
 	return Transfer{}, false, nil
 }
 
+func (t *fakeTx) FindTransferByID(id string) (Transfer, bool, error) {
+	for _, tr := range t.s.transfers {
+		if tr.ID == id {
+			// Return the postings as the store holds them (with their assigned
+			// seq), not the copy the caller handed to InsertTransfer.
+			var ps []Posting
+			for _, p := range t.s.postings {
+				if p.TransferID == id {
+					ps = append(ps, p)
+				}
+			}
+			tr.Postings = ps
+			return tr, true, nil
+		}
+	}
+	return Transfer{}, false, nil
+}
+
 func (t *fakeTx) InsertTransfer(tr Transfer) error {
 	// Assign seq as MAX(seq)+1 per account, mirroring the adapter (D-B1).
 	for i := range tr.Postings {

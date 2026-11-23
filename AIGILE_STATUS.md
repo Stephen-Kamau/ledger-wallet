@@ -6,11 +6,17 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 
 **Phase:** Producing
 **Active burst:** None
-**Burst base:** 26479e742078400a2872b17c33d71bcd7a1ea30f
+**Burst base:** 911c6a70f8ca57b8cfd3bc6493b27f43a02f51d0
 
 <!-- Per-operator burst bases, same last-writer caveat as the burst id above.         -->
+<!--   nia    5977f4196ef666a6454646ffad573d0c9b1de02d                                -->
 <!--   kofi   29bfb97ef68b929a66b087a18db0572bc1919ada                                -->
 <!--   dakari 26479e742078400a2872b17c33d71bcd7a1ea30f                                -->
+<!--   amara  911c6a70f8ca57b8cfd3bc6493b27f43a02f51d0                                -->
+<!-- amara rebased onto github/dev four times to land behind nia/zola/kofi/dakari, so -->
+<!-- 911c6a7 is no longer reachable from HEAD. The signed manifest for it is          -->
+<!-- committed under .aigile/manifests/ and remains the record of what was claimed.   -->
+<!-- kofi hit the same thing: a claim's base SHA does not survive a rebase.           -->
 **Plan reference:** None
 **Next action:** kofi stream landed (0fb6617). Awaiting dakari's POST /entries/{id}/reverse; then zola re-reviews the full burst diff.
 **Last updated:** [YYYY-MM-DD]

@@ -47,6 +47,18 @@ type Ledger interface {
 
 	// AvailableBalance is the posted balance minus the sum of active holds.
 	AvailableBalance(ctx context.Context, id AccountID) (Amount, error)
+
+	// Reverse posts a COMPENSATING entry that mirrors entryID's postings (R5). The
+	// original entry is never mutated or deleted: it stays in the ledger and in the
+	// statement, and the reversal is a new balanced entry (R1) that leaves total
+	// conservation intact (R2).
+	//
+	// The compensating entry DEBITS the original's destination, so authorizer must
+	// own that account (R7) and it must be able to fund the debit (R3). An entry
+	// that already carries a reversal returns ErrAlreadyReversed (R13) rather than a
+	// second compensating entry; an unknown entry returns ErrTransferNotFound.
+	// Replaying idempotencyKey returns the original reversal (R4).
+	Reverse(ctx context.Context, authorizer PrincipalID, entryID string, idempotencyKey string) (TransferResult, error)
 }
 
 // ledger is the concrete invariant engine over a Store. It is the only writer of

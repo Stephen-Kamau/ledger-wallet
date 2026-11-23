@@ -36,4 +36,9 @@ var (
 	ErrInvalidAccount = &LedgerError{Code: "invalid_account", Message: "account requires an owner and a currency"}
 	// ErrHoldNotFound - a release names an unknown or already-released hold -> 404.
 	ErrHoldNotFound = &LedgerError{Code: "hold_not_found", Message: "hold not found or already released"}
+	// ErrTransferNotFound - a reversal names an unknown entry -> 404.
+	ErrTransferNotFound = &LedgerError{Code: "transfer_not_found", Message: "transfer not found"}
+	// ErrAlreadyReversed - the entry already carries a compensating entry (R5) -> 409.
+	// A second reversal is refused rather than posted: one entry, at most one reversal.
+	ErrAlreadyReversed = &LedgerError{Code: "already_reversed", Message: "entry has already been reversed"}
 )
