@@ -5,9 +5,33 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 ## Current state
 
 **Phase:** Producing
-**Active burst:** None
+**Active burst:** reversals
 **Burst base:** 911c6a70f8ca57b8cfd3bc6493b27f43a02f51d0
 
+<!-- WHY THIS CLONE'S PAIR NAMES ONLY amara (AGV-328/329).                           -->
+<!-- AIGILE_PLAN/current/bursts/ holds FOUR stores, one per operator clone, because   -->
+<!-- the shared branch carries everyone's plan records while STATUS carries ONE pair:  -->
+<!--   5ec0edc1...  nia     web/**                        (1 declared glob)           -->
+<!--   58487fc0...  kofi    migrations/, tests/           (4 declared globs)          -->
+<!--   f565fc1d...  dakari  api/**                        (1 declared glob)           -->
+<!--   a1bd5f52...  amara   core/**, internal/sqlite/**   (9 declared globs)  <- THIS  -->
+<!-- Each owner was read from that store's own round_1/plan.md, not inferred.         -->
+<!--                                                                                  -->
+<!-- RESOLUTION: this clone's pair names amara, and that is not a preference. The      -->
+<!-- canonical burst-axis resolver (lib/ag_active_burst.py, THE one chokepoint per     -->
+<!-- AGV-328) resolves store_dir for THIS clone to bursts/a1bd5f52..., so every        -->
+<!-- consumer that addresses the burst axis here - claims, overlap, cost, render -     -->
+<!-- already reads amara's store. Writing any other id would make STATUS disagree      -->
+<!-- with the resolver and with .aigile/manifests/911c6a70... , the signed claim.      -->
+<!-- So the closed record from THIS clone carries a1bd5f52... / base 911c6a70... .     -->
+<!--                                                                                  -->
+<!-- What is NOT claimed: that this is the burst id for the `reversals` burst as a     -->
+<!-- whole. There is no such single id. Plan-store state is per-clone and is           -->
+<!-- deliberately NOT merged across operators (AGV-328/329, and docs/REPORT-ledger-    -->
+<!-- wallet-build.md "Honest limitations"). Four closed records will exist, one per    -->
+<!-- clone, each naming its own id. Anyone reconciling the burst reads all four        -->
+<!-- stores above, never this single field.                                           -->
+<!--                                                                                  -->
 <!-- Per-operator burst bases, same last-writer caveat as the burst id above.         -->
 <!--   nia    5977f4196ef666a6454646ffad573d0c9b1de02d                                -->
 <!--   kofi   29bfb97ef68b929a66b087a18db0572bc1919ada                                -->
