@@ -343,8 +343,8 @@ func TestReverse_RealAdapter_UnknownEntry(t *testing.T) {
 			_, _, _ = funded(t, l, 100, 30)
 
 			_, err := l.Reverse(context.Background(), "bob", "xfer_nope", "rev-1")
-			if !errors.Is(err, core.ErrTransferNotFound) {
-				t.Fatalf("got %v, want ErrTransferNotFound", err)
+			if !errors.Is(err, core.ErrEntryNotFound) {
+				t.Fatalf("got %v, want ErrEntryNotFound", err)
 			}
 		})
 	}

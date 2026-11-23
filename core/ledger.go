@@ -56,7 +56,7 @@ type Ledger interface {
 	// The compensating entry DEBITS the original's destination, so authorizer must
 	// own that account (R7) and it must be able to fund the debit (R3). An entry
 	// that already carries a reversal returns ErrAlreadyReversed (R13) rather than a
-	// second compensating entry; an unknown entry returns ErrTransferNotFound.
+	// second compensating entry; an unknown entry returns ErrEntryNotFound.
 	// Replaying idempotencyKey returns the original reversal (R4).
 	Reverse(ctx context.Context, authorizer PrincipalID, entryID string, idempotencyKey string) (TransferResult, error)
 }

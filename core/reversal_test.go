@@ -157,8 +157,8 @@ func TestReverse_R13_UnknownEntryIsTypedNotFound(t *testing.T) {
 	l, _, _, _, _ := reversible(t, 100, 30)
 
 	_, err := l.Reverse(context.Background(), "bob", "xfer_does_not_exist", "rev-1")
-	if !errors.Is(err, ErrTransferNotFound) {
-		t.Fatalf("got %v, want ErrTransferNotFound", err)
+	if !errors.Is(err, ErrEntryNotFound) {
+		t.Fatalf("got %v, want ErrEntryNotFound", err)
 	}
 }
 

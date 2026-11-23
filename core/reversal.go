@@ -32,7 +32,7 @@ func reversalID(entryID string) string { return reversalPrefix + entryID }
 // the correction is only ever an INSERT.
 func (l *ledger) Reverse(ctx context.Context, authorizer PrincipalID, entryID string, idempotencyKey string) (TransferResult, error) {
 	if entryID == "" {
-		return TransferResult{}, ErrTransferNotFound
+		return TransferResult{}, ErrEntryNotFound
 	}
 
 	var result TransferResult
@@ -57,7 +57,7 @@ func (l *ledger) Reverse(ctx context.Context, authorizer PrincipalID, entryID st
 			return err
 		}
 		if !ok {
-			return ErrTransferNotFound
+			return ErrEntryNotFound
 		}
 
 		// R13: one entry, at most one compensating entry.
