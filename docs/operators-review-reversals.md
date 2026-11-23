@@ -153,3 +153,78 @@ whole. Nothing of another operator's was discarded; no other operator had landed
 My own working tree carried only provisioning noise (`CLAUDE.md`, `BACKLOG.md`,
 `.claude/.aigile-version`) plus `tests/throughput_baseline.txt`, which the throughput test
 rewrites as a side effect - all autostashed and none committed.
+
+---
+
+# Review round 2 - kofi's stream (`migrations/`, `tests/`)
+
+**Reviewed at:** `3a9e6ef` (dev), 2026-11-23 UTC. Streams landed: nia, kofi. **dakari still absent.**
+
+## Verdict on kofi's stream: APPROVE
+
+| Check | Result |
+|---|---|
+| `go build ./...` / `go vet ./...` | clean |
+| `go test ./... -race` (full suite) | **green**, exit 0 (`tests` 345s) |
+| Scope vs signed globs `['migrations/', 'tests/']` | clean - wrote exactly that |
+| R5 append-only triggers | **intact** - `postings_no_update` / `postings_no_delete` unchanged, no `DROP` anywhere |
+| `0004_reversals.sql` idempotency | every `CREATE` guarded `IF NOT EXISTS` |
+| Merge integrity | clean rebase; zola/nia/kofi activity rows all present, nothing overwritten |
+
+`0004_reversals.sql` is rigorous: `UNIQUE (original_transfer_id)` plus settle-once,
+no-repoint and no-delete-settled triggers. `TestR18_ConcurrentReversalsOfSameEntry_ExactlyOne`
+races 32 goroutines with **deliberately distinct idempotency keys** and asserts exactly one
+claim wins; kofi verified it fails correctly with the constraint removed.
+
+Two edits to existing tests were checked for weakening and are **improvements**:
+`migrations_test.go` now walks `migrations.Names()` instead of a hardcoded filename list, so
+a new migration cannot silently escape parity; the R19 `-short` skip carries a stated, measured
+precondition and the default full run still measures it.
+
+## C1 - DOWNGRADED
+
+My round-1 C1 said a retried reversal could post a second correction and move money twice.
+**kofi's `UNIQUE (original_transfer_id)` makes that structurally impossible**, independent of
+the idempotency key - which is exactly what `TestR18` proves with distinct keys.
+
+What survives is narrower: nia's comment at `StatementPane.tsx:129` credits the idempotency
+key for a guarantee the key does not provide (the database constraint does). The comment should
+name the real mechanism. **No longer blocking.**
+
+## C5 - BLOCKING, CROSS-STREAM. A failed compensating transfer bricks reversal for that entry forever.
+
+Neither operator can see this alone; it exists only in the seam between them.
+
+`core` has **no `Reverse` and no `Tx.InsertReversal`** (verified: `grep -rn 'func.*Reverse\|InsertReversal' core/ internal/sqlite/` is empty). kofi reported this to amara and it was not taken. So reversal is claim-then-settle across **two** transactions, and `tests/reversals_test.go` `reverse()` shows the consequence:
+
+1. `claimReversal` INSERTs the claim and **commits**.
+2. The compensating transfer runs. If it fails, the helper `return true, terr` - **the claim row is left behind, unsettled.**
+3. `UNIQUE (original_transfer_id)` now rejects every future attempt to reverse that entry.
+
+The failure in step 2 is not exotic. `insufficient_funds` on the compensating leg is the
+ordinary case where the destination has already spent the money - and it is a case nia wrote
+UI copy for.
+
+kofi designed the escape hatch: the schema deliberately permits deleting an *unsettled* claim,
+asserted at `tests/reversals_test.go:401-405` ("rollback path when the compensating transfer
+fails after the claim commits"). **Nothing performs that rollback**, and there is no `core`
+seam to own it. A crash between commit and settle orphans the claim with no cleanup at all.
+
+**The cross-stream contradiction:** nia's `insufficient_funds` copy reads *"The entry was not
+reversed."* - which the user reasonably reads as "try again later". After the first attempt
+they never can. The UI promises retriability the schema has permanently revoked.
+
+**Fix:** give `core` a `Reverse` seam that writes the claim and the compensating postings in
+one transaction, or make the caller delete the unsettled claim on settle failure and add a
+sweep for orphans. Until then C2's copy is actively misleading on this path.
+
+## C3 - still open
+
+`POST /entries/{id}/reverse` **still does not exist**. The mandatory live reversal e2e
+(reverse / idempotent replay / 409 / 403) remains unrunnable. The burst is not shippable.
+
+## Burst-level verdict: REQUEST_CHANGES
+
+Not against either landed stream - both are good work and both are APPROVEd on their own
+scope. Against the **burst**: C5 is a money-path liveness defect in the seam, and C3 means the
+one verification that would have caught it end to end has never been run.
