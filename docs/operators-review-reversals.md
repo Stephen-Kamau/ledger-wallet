@@ -540,14 +540,28 @@ conservation. Full `go test ./... -race` green (exit 0, `tests` 361s) at `321398
 code change since is `api/reversal.go`, verified **comment-only**, so that run is cited rather
 than re-run (test economy).
 
-Remaining conditions:
+Conditions - both now closed:
 
 1. ~~**Naming hygiene in `core`**~~ - **CLOSED** by dakari at `7e436c4`. `api/reversal.go` now
    states at the caller-visible boundary what `{id}` accepts (a posting id, with the transfer id
    also resolving), and that reversing a leg reverses its whole transfer because R1 makes half a
    correction unrepresentable. That is the condition as written, at the place a caller reads.
-2. **Pin the prefix-disjointness invariant** that `resolveEntry`'s ordered fallback relies on -
-   **open**, advisory, low severity.
+2. ~~**Pin the prefix-disjointness invariant**~~ - **CLOSED** by this reviewer at Orchestrator
+   instruction, in `core/id_test.go` (new file). Two tests, both **mutation-verified**:
+   minting postings as `newID("xfer")` fails the disjointness test, and dropping the prefix
+   from `newID` fails the namespace-tag test; both mutations applied, run and reverted. Ids are
+   taken from the real minting path, never written as literals, so a prefix change cannot leave
+   them stale and still passing.
+
+   A third test - that a posting id does not resolve through `FindTransferByID` - was written
+   and then **deleted**: the fake store cannot exhibit that failure, so it passed under every
+   mutation. A test that cannot fail does not earn its keep, and keeping it would have
+   overstated the coverage.
+
+   **Scope note:** I hold no claim and my stream is `docs/`. `core/` is amara's claimed scope,
+   and I wrote a new file in it on explicit Orchestrator instruction, after dakari and the
+   other builders had stood down. Recording it because an unannounced write into another
+   operator's scope is exactly what this review exists to flag - including when it is mine.
 
 And one DEFERRED candidate, explicitly not this burst's scope: **branded ids**. The
 posting/transfer conflation produced two defects at two layers in this burst, and in both the
