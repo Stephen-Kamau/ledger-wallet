@@ -13,7 +13,7 @@
   "model_config": null,
   "burst_sha": "911c6a70f8ca57b8cfd3bc6493b27f43a02f51d0",
   "project_slug": "ledger-wallet",
-  "burst_label": null,
+  "burst_label": "reversals",
   "orchestrator": {
     "name": "Amara Okeyo",
     "email": "amara@ledger.test"
@@ -78,7 +78,10 @@
   "builder_terminal_invocations": [],
   "governance_invocations": [],
   "ship_fallback_authorizations": [],
-  "archive_locator": null,
+  "archive_locator": {
+    "path": "AIGILE_PLAN/closed/2026-11-23-reversals-911c6a7",
+    "recorded_at": "2026-11-23T20:04:37Z"
+  },
   "archive_receipts": [],
   "refreezes": [],
   "reviews": {},
