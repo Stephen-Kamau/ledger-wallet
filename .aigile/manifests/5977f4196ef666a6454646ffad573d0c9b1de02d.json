@@ -46,7 +46,13 @@
     "path": "AIGILE_PLAN/closed/2026-11-23-reversals-5977f41",
     "recorded_at": "2026-11-23T20:48:17Z"
   },
-  "archive_receipts": [],
+  "archive_receipts": [
+    {
+      "archive_commit": "9e8d67064f6437c253e6350e882614c38dcba7b4",
+      "archive_path": "AIGILE_PLAN/closed/2026-11-23-reversals-5977f41",
+      "recorded_at": "2026-11-23T20:48:40Z"
+    }
+  ],
   "refreezes": [],
   "reviews": {},
   "contributors": [],
