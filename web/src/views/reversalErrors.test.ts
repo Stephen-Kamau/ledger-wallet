@@ -3,6 +3,7 @@ import { ApiError } from "../api/types";
 import {
   canonicalReversalCode,
   mapReversalError,
+  unconfirmedOutcome,
   REVERSAL_CODE_ALIASES,
   REVERSAL_ERRORS,
   REVERSAL_REACHABLE_CODES,
@@ -74,11 +75,33 @@ describe("placement and session handling", () => {
   });
 });
 
-describe("the generic bucket is the only place an unmapped code lands", () => {
-  it("quotes the request id and states that nothing was reversed", () => {
+describe("an unknown outcome is reported as UNCONFIRMED, never as 'not reversed' (C2)", () => {
+  it("quotes the request id and makes no claim about whether money moved", () => {
     const m = mapReversalError(err("some_new_code", 500));
     expect(m.message).toContain("req_rev");
-    expect(m.message).toContain("not reversed");
+    expect(m.message).toContain("cannot confirm");
+    expect(m.message).not.toContain("was not reversed");
+  });
+
+  it("sends the user to REFRESH, not retry — a retry could double-post", () => {
+    expect(mapReversalError(err("some_new_code", 500)).action).toBe("refresh");
+  });
+
+  it("treats `internal` the same way: it can be emitted AFTER the ledger commits", () => {
+    const m = mapReversalError(err("internal", 500));
+    expect(m.message).toContain("cannot confirm");
+    expect(m.action).toBe("refresh");
+  });
+
+  it("still works with no request id", () => {
+    expect(unconfirmedOutcome("").message).toContain("cannot confirm");
+  });
+
+  it("only DETERMINISTIC pre-commit rejections are allowed to say nothing posted", () => {
+    // These are refused by an invariant before anything is written, so the claim is safe.
+    for (const code of ["insufficient_funds", "currency_mismatch", "invalid_account"]) {
+      expect(mapReversalError(err(code)).message).toMatch(/not reversed/);
+    }
   });
 
   it("never leaks the raw server sentence for a mapped code", () => {

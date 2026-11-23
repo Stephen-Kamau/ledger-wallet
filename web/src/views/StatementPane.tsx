@@ -10,11 +10,12 @@
 // ./reversalErrors (code -> copy, placement, next action) and ./reversalIndex (which
 // rows are corrections, which have been corrected, and where Reverse is offered).
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { newIdempotencyKey, type ApiClient } from "../api/client";
 import { ApiError, type Posting } from "../api/types";
 import { formatMinor } from "../money";
-import { mapReversalError, type MappedReversalError } from "./reversalErrors";
+import { mapReversalError, unconfirmedOutcome, type MappedReversalError } from "./reversalErrors";
+import { ReversalIntents } from "./reversalIntent";
 import {
   buildReversalIndex,
   canReverse,
@@ -59,6 +60,9 @@ export function StatementPane({
   const [rowError, setRowError] = useState<RowError | null>(null);
   const [paneError, setPaneError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // One idempotency key per reversal intent, reused across retries (C1). A ref, not
+  // state: changing it must never re-render, and a re-render must never reset it.
+  const intents = useRef(new ReversalIntents(newIdempotencyKey));
 
   const loadMore = useCallback(
     async (id: string, cursor: number, reset: boolean) => {
@@ -100,6 +104,7 @@ export function StatementPane({
     setRowError(null);
     setPaneError(null);
     setNotice(null);
+    intents.current.clear();
     if (accountId !== null) void loadMore(accountId, 0, true);
   }, [accountId, loadMore]);
 
@@ -124,9 +129,11 @@ export function StatementPane({
       setPaneError(null);
       setNotice(null);
       try {
-        // One idempotency key per reversal INTENT (R4): a retried or double-submitted
-        // reverse returns the original correction instead of posting a second one.
-        const body = await client.reverseEntry(entryId, newIdempotencyKey());
+        // One idempotency key per reversal INTENT (R4), held in `intents` and REUSED by
+        // every retry of this entry, so a retried reverse replays the original correction
+        // instead of posting a second one. See ./reversalIntent for why this is not a
+        // fresh key per call.
+        const body = await client.reverseEntry(entryId, intents.current.keyFor(entryId));
         setLocalReversals((prev) => [
           ...prev,
           localReversalFrom(body.reverses_entry_id ?? entryId, body.transfer_id),
@@ -136,16 +143,21 @@ export function StatementPane({
             ? "This entry was already corrected by an earlier identical request; the existing reversal is shown."
             : "Reversed. The correction has been posted to this statement as a new entry.",
         );
+        // The intent is closed: the correction is confirmed, so a later reverse of this
+        // entry is a new intent and must not replay this key.
+        intents.current.close(entryId);
         if (accountId !== null) void loadMore(accountId, 0, true);
       } catch (e) {
         if (!(e instanceof ApiError)) {
+          // A transport failure is NOT evidence that nothing posted — the request may
+          // have reached the server and committed (C2). The intent stays OPEN so a retry
+          // reuses the key and cannot double-post.
           setRowError({
             entryId,
             mapped: {
-              message: "Could not reach the server. This entry was not reversed.",
-              placement: "row",
-              action: "retry",
-              reauth: false,
+              ...unconfirmedOutcome(""),
+              message:
+                "Could not reach the server, so we cannot confirm whether this entry was reversed. Refresh the statement to see what actually posted.",
             },
           });
           return;
@@ -213,10 +225,16 @@ export function StatementPane({
                 disabled={reversing !== null}
                 rowError={p.id !== undefined && rowError?.entryId === p.id ? rowError.mapped : null}
                 onAsk={() => p.id !== undefined && setConfirming(p.id)}
-                onCancel={() => setConfirming(null)}
+                onCancel={() => {
+                  if (p.id !== undefined) intents.current.close(p.id);
+                  setConfirming(null);
+                }}
                 onConfirm={() => p.id !== undefined && void reverse(p.id)}
                 onRefresh={refresh}
-                onDismissError={() => setRowError(null)}
+                onDismissError={() => {
+                  if (p.id !== undefined) intents.current.close(p.id);
+                  setRowError(null);
+                }}
               />
             );
           })}

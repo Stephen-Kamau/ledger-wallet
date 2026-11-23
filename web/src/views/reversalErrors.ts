@@ -144,22 +144,36 @@ export interface MappedReversalError {
   reauth: boolean;
 }
 
-// mapReversalError turns a thrown ApiError into placed, actionable copy. Only an
-// UNMAPPED code reaches the generic sentence, and even that states the financial fact
-// that matters — the entry was NOT reversed — and quotes the request id. It never
-// surfaces `e.userMessage` raw: a server string is a developer's sentence, and the
-// whole point of this map is that the user reads ours.
+// UNCONFIRMED_OUTCOME is the honest answer when the client cannot know whether the
+// correction posted. It is NOT a generic error message; it is a different claim.
+//
+// The earlier version of this said "This entry was not reversed." That is a statement of
+// financial fact the client is not entitled to make. `internal` routes here deliberately,
+// and api/errors.go `writeJSON` emits `500 internal` when the SUCCESS body fails to
+// marshal — i.e. AFTER the ledger has committed. A panic after commit lands in the same
+// place. So "was not reversed" is false in exactly the cases that reach this branch, and
+// it was paired with a retry, which under C1's fresh key would have posted a second
+// correction. Caught in review (C2, burst `reversals`).
+//
+// Refresh, never retry: the only safe next move is to go and look at what actually posted.
+export function unconfirmedOutcome(requestId: string): MappedReversalError {
+  const idPart = requestId ? ` (id ${requestId})` : "";
+  return {
+    message: `Something unexpected happened on our side${idPart}. We cannot confirm whether this entry was reversed — refresh the statement to see what actually posted.`,
+    placement: "row",
+    action: "refresh",
+    reauth: false,
+  };
+}
+
+// mapReversalError turns a thrown ApiError into placed, actionable copy. An UNMAPPED or
+// `internal` code reaches the unconfirmed-outcome sentence above, which quotes the request
+// id and makes no claim about whether money moved. It never surfaces `e.userMessage` raw:
+// a server string is a developer's sentence, and the whole point of this map is that the
+// user reads ours.
 export function mapReversalError(e: ApiError): MappedReversalError {
   const spec = REVERSAL_ERRORS[canonicalReversalCode(e.code)];
-  if (spec === undefined) {
-    const idPart = e.requestId ? ` (id ${e.requestId})` : "";
-    return {
-      message: `Something unexpected happened on our side${idPart}. This entry was not reversed.`,
-      placement: "row",
-      action: "retry",
-      reauth: false,
-    };
-  }
+  if (spec === undefined) return unconfirmedOutcome(e.requestId);
   return {
     message: spec.msg,
     placement: spec.at.pane ? "pane" : "row",
