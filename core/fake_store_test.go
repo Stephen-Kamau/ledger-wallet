@@ -12,14 +12,35 @@ import (
 // (§5) closely enough for the invariant tests (true contention is Kofi's sqlite-level
 // suite).
 type fakeStore struct {
-	mu        sync.Mutex
-	accounts  map[AccountID]Account
-	transfers []Transfer
-	postings  []Posting
+	mu         sync.Mutex
+	accounts   map[AccountID]Account
+	transfers  []Transfer
+	postings   []Posting
+	currencies []CurrencyMeta
+	holds      map[HoldID]Hold
 }
 
 func newFakeStore() *fakeStore {
-	return &fakeStore{accounts: map[AccountID]Account{}}
+	return &fakeStore{accounts: map[AccountID]Account{}, holds: map[HoldID]Hold{}}
+}
+
+func (f *fakeStore) ActiveHoldsTotal(ctx context.Context, id AccountID) (Amount, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if _, err := f.getAccount(id); err != nil {
+		return 0, err
+	}
+	return f.activeHoldsTotal(id), nil
+}
+
+func (f *fakeStore) activeHoldsTotal(id AccountID) Amount {
+	var sum Amount
+	for _, h := range f.holds {
+		if h.Account == id && h.Active {
+			sum += h.Amount
+		}
+	}
+	return sum
 }
 
 func (f *fakeStore) InTx(ctx context.Context, fn func(tx Tx) error) error {
@@ -99,6 +120,15 @@ func (f *fakeStore) Statement(ctx context.Context, id AccountID, page Page) (Sta
 	return out, nil
 }
 
+func (f *fakeStore) ListCurrencies(ctx context.Context) ([]CurrencyMeta, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	out := make([]CurrencyMeta, len(f.currencies))
+	copy(out, f.currencies)
+	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
+	return out, nil
+}
+
 // fakeTx mutates the parent store directly; InTx already holds the lock.
 type fakeTx struct{ s *fakeStore }
 
@@ -119,6 +149,33 @@ func (t *fakeTx) FindTransferByKey(owner PrincipalID, key string) (Transfer, boo
 	return Transfer{}, false, nil
 }
 
+func (t *fakeTx) FindTransferByID(id string) (Transfer, bool, error) {
+	for _, tr := range t.s.transfers {
+		if tr.ID == id {
+			// Return the postings as the store holds them (with their assigned
+			// seq), not the copy the caller handed to InsertTransfer.
+			var ps []Posting
+			for _, p := range t.s.postings {
+				if p.TransferID == id {
+					ps = append(ps, p)
+				}
+			}
+			tr.Postings = ps
+			return tr, true, nil
+		}
+	}
+	return Transfer{}, false, nil
+}
+
+func (t *fakeTx) FindTransferByPostingID(postingID string) (Transfer, bool, error) {
+	for _, p := range t.s.postings {
+		if p.ID == postingID {
+			return t.FindTransferByID(p.TransferID)
+		}
+	}
+	return Transfer{}, false, nil
+}
+
 func (t *fakeTx) InsertTransfer(tr Transfer) error {
 	// Assign seq as MAX(seq)+1 per account, mirroring the adapter (D-B1).
 	for i := range tr.Postings {
@@ -132,5 +189,36 @@ func (t *fakeTx) InsertTransfer(tr Transfer) error {
 		t.s.postings = append(t.s.postings, tr.Postings[i])
 	}
 	t.s.transfers = append(t.s.transfers, tr)
+	return nil
+}
+
+func (t *fakeTx) ActiveHoldsTotal(id AccountID) (Amount, error) {
+	return t.s.activeHoldsTotal(id), nil
+}
+
+func (t *fakeTx) FindHoldByKey(owner PrincipalID, key string) (Hold, bool, error) {
+	for _, h := range t.s.holds {
+		if h.Owner == owner && h.IdempotencyKey == key {
+			return h, true, nil
+		}
+	}
+	return Hold{}, false, nil
+}
+
+func (t *fakeTx) InsertHold(h Hold) error {
+	t.s.holds[h.ID] = h
+	return nil
+}
+
+func (t *fakeTx) GetHold(id HoldID) (Hold, bool, error) {
+	h, ok := t.s.holds[id]
+	return h, ok, nil
+}
+
+func (t *fakeTx) ReleaseHold(id HoldID) error {
+	if h, ok := t.s.holds[id]; ok {
+		h.Active = false
+		t.s.holds[id] = h
+	}
 	return nil
 }

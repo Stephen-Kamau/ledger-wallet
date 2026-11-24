@@ -28,3 +28,4 @@ AIGILE_PLAN/current/turns.jsonl.resolve.lock/
 **/AIGILE_PLAN/current/turns.jsonl.resolve.lock/
 !.aigile/test-suites.tsv
 !.aigile/mutation-runners.tsv
+!.aigile/multi_user_enabled.json

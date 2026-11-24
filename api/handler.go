@@ -83,8 +83,13 @@ func (h *Handler) Router() http.Handler {
 	mux.HandleFunc("POST /accounts", h.createAccount)
 	mux.HandleFunc("GET /accounts", h.listAccounts) // D-C1
 	mux.HandleFunc("GET /accounts/{id}", h.getBalance)
+	mux.HandleFunc("GET /accounts/{id}/available", h.getAvailable)
 	mux.HandleFunc("POST /transfers", h.createTransfer)
 	mux.HandleFunc("GET /accounts/{id}/statement", h.getStatement)
+	mux.HandleFunc("GET /currencies", h.listCurrencies) // public reference data (0002)
+	mux.HandleFunc("POST /accounts/{id}/holds", h.placeHold)
+	mux.HandleFunc("DELETE /accounts/{id}/holds/{holdId}", h.releaseHold)
+	mux.HandleFunc("POST /entries/{id}/reverse", h.reverseEntry) // compensating entry
 	// Catch-all for unknown paths → typed 404. More specific patterns above win
 	// (ServeMux longest-pattern precedence); a wrong method on a known path is
 	// ServeMux's own 405.

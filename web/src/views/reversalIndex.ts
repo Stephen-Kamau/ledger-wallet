@@ -1,0 +1,213 @@
+// views/reversalIndex.ts — turns a page of statement postings into per-row reversal
+// state. This is the module that satisfies the actual requirement: a compensating
+// entry must READ as a reversal, not as an unexplained second transfer.
+//
+// R5 is append-only — a correction is a new posting, and the original is never edited
+// or removed. So "reversed" is not a property of a row; it is a RELATIONSHIP between
+// two rows, and the statement is honest only if both ends of it are labelled:
+//
+//   the original  -> "Reversed" + which entry reversed it, still showing its amount
+//   the correction-> "Reversal of <entry>" + which entry it put right
+//
+// Two sources feed the index, in this order:
+//
+//   1. The server's link fields on Posting (reverses_entry_id, reversed_by_entry_id).
+//      Authoritative, and the only source that survives a page reload. STUB CONTRACT:
+//      see api/types.ts — dakari's endpoint is not on dev yet.
+//   2. Reversals performed in THIS session. The POST response tells us the link before
+//      any statement refetch does, and the server's statement projection may be read
+//      from a replica that has not caught up. Without this overlay a user who clicks
+//      Reverse watches a second transfer appear with no explanation, which is exactly
+//      the failure mode the requirement names.
+//
+// The overlay only ever ADDS links the server has not reported yet; it never contradicts
+// a server link, because (1) is applied last and wins on conflict.
+
+import type { Posting } from "../api/types";
+
+// A reversal this session performed: the entry the user reversed, and the compensating
+// transfer the server created for it.
+export interface LocalReversal {
+  reversedEntryId: string;
+  reversalTransferId: string;
+}
+
+export type RowReversalState =
+  | { kind: "plain" }
+  // This entry has been reversed by a later correction.
+  | { kind: "reversed"; byEntryId?: string }
+  // This entry IS the correction for an earlier one.
+  | { kind: "reversal"; ofEntryId: string };
+
+export type ReversalIndex = Map<string, RowReversalState>;
+
+// REVERSAL_ID_PREFIX mirrors core/reversal.go reversalPrefix. The compensating
+// transfer's id is DERIVED from the one it corrects — `rev_` + the original transfer id —
+// which is a guarantee of core, not a convention this layer hopes holds.
+//
+// That derivation is what lets the statement read correctly with NO new API field. The
+// live GET /accounts/{id}/statement emits neither `reverses_entry_id` nor
+// `reversed_by_entry_id` (verified against a real ledgerd: grep over the response body
+// returns 0 of each). The stub this stream was built against INJECTED them, so every
+// browser pass before the endpoint landed was answering a question the stub had supplied
+// the answer to. On a real server, before this, a correction survived a page reload as an
+// unexplained second transfer — exactly what the requirement forbids — because the session
+// overlay is all that linked it and a reload empties that.
+//
+// The id is already on every statement row, so both directions are recoverable from
+// `transfer_id` alone. No endpoint change, no coordination with another stream.
+const REVERSAL_ID_PREFIX = "rev_";
+
+function originalTransferOf(transferId: string): string | null {
+  return transferId.startsWith(REVERSAL_ID_PREFIX)
+    ? transferId.slice(REVERSAL_ID_PREFIX.length)
+    : null;
+}
+
+// buildReversalIndex keys by posting id. A row with no id cannot be linked in either
+// direction and is simply absent from the map (callers read it as "plain").
+//
+// Three sources, applied weakest to strongest so the strongest wins on conflict:
+//   (3) the session overlay — what a POST response told us before any refetch
+//   (2) the derived `rev_` link — recoverable from the page itself, survives a reload
+//   (1) explicit server link fields — authoritative if the API ever emits them
+export function buildReversalIndex(
+  rows: readonly Posting[],
+  local: readonly LocalReversal[] = [],
+): ReversalIndex {
+  const index: ReversalIndex = new Map();
+
+  const locallyReversed = new Set(local.map((l) => l.reversedEntryId));
+  // transfer_id -> the entry that transfer was created to reverse.
+  const reversalTransfers = new Map(
+    local.map((l) => [l.reversalTransferId, l.reversedEntryId] as const),
+  );
+
+  // transfer_id -> this account's postings under it, so a derived link can name the
+  // POSTING on the other end rather than only the transfer. Captions address entries.
+  const postingsByTransfer = new Map<string, Posting[]>();
+  for (const row of rows) {
+    if (row.transfer_id === undefined) continue;
+    const bucket = postingsByTransfer.get(row.transfer_id);
+    if (bucket === undefined) postingsByTransfer.set(row.transfer_id, [row]);
+    else bucket.push(row);
+  }
+
+  // counterpartEntry finds the posting on THIS account under `transferId`. A transfer has
+  // a leg per account; the statement only shows this account's, but a page can hold legs
+  // of several accounts, so match on account rather than taking the first.
+  const counterpartEntry = (transferId: string, accountId: string): string | undefined =>
+    postingsByTransfer.get(transferId)?.find((p) => p.account_id === accountId)?.id;
+
+  for (const row of rows) {
+    if (row.id === undefined) continue;
+
+    // (3) session overlay.
+    if (row.transfer_id !== undefined && reversalTransfers.has(row.transfer_id)) {
+      index.set(row.id, {
+        kind: "reversal",
+        ofEntryId: reversalTransfers.get(row.transfer_id)!,
+      });
+    } else if (locallyReversed.has(row.id)) {
+      index.set(row.id, { kind: "reversed" });
+    }
+
+    // (2) derived from the id. This is what makes a reload correct.
+    if (row.transfer_id !== undefined) {
+      const reversedTransfer = originalTransferOf(row.transfer_id);
+      if (reversedTransfer !== null) {
+        // This row IS a correction. Name the posting it corrects when that posting is on
+        // the page; otherwise name the transfer, which is still a true statement.
+        index.set(row.id, {
+          kind: "reversal",
+          ofEntryId: counterpartEntry(reversedTransfer, row.account_id) ?? reversedTransfer,
+        });
+      } else if (postingsByTransfer.has(REVERSAL_ID_PREFIX + row.transfer_id)) {
+        // A correction for this row's transfer is on the page, so this row is reversed.
+        index.set(row.id, {
+          kind: "reversed",
+          byEntryId: counterpartEntry(REVERSAL_ID_PREFIX + row.transfer_id, row.account_id),
+        });
+      }
+    }
+
+    // (1) explicit server links win. Checked in this order because a row that is BOTH a
+    // correction and itself corrected is a reversal of something first — that is the
+    // identity the user needs to read the amount, and `reversed` is then carried by
+    // the later row that points back at it.
+    if (row.reverses_entry_id !== undefined) {
+      index.set(row.id, { kind: "reversal", ofEntryId: row.reverses_entry_id });
+    } else if (row.reversed_by_entry_id !== undefined) {
+      index.set(row.id, { kind: "reversed", byEntryId: row.reversed_by_entry_id });
+    }
+  }
+
+  // A correction whose original is NOT on the page still reads as a reversal — it names
+  // the transfer it put right. Append-only means both rows exist; a statement that
+  // quietly nets them out would be lying about the ledger, so nothing is hidden or
+  // merged. The converse is an honest limit: an original whose correction has not been
+  // fetched yet cannot be known to be reversed, so Reverse is still offered and the
+  // server answers 409, which the UI renders with a Refresh.
+  return index;
+}
+
+export function reversalStateFor(index: ReversalIndex, row: Posting): RowReversalState {
+  if (row.id === undefined) return { kind: "plain" };
+  return index.get(row.id) ?? { kind: "plain" };
+}
+
+// canReverse decides whether to offer the action at all. TWO rules, and no more — every
+// other rejection belongs to the server, and inventing a client-side rule means disabling
+// a button for a reason the API does not actually hold.
+//
+//   - no id: nothing to address the call to.
+//   - already reversed: `rev_<id>` exists, so core returns ErrAlreadyReversed
+//     (core/reversal.go:64-68); offering Reverse again only buys a 409.
+//
+// A REVERSAL row is reversible, and the third rule that used to withhold it here was
+// exactly the UI lie this comment warns about. core/reversal.go:21-23 is explicit: the
+// derived id is applied to a reversal's own id, "that is a DISTINCT entry and a
+// legitimate correction of a correction, so it is allowed". Guessing "no double
+// negatives" disabled an operation the ledger supports.
+export function canReverse(state: RowReversalState, row: Posting): boolean {
+  if (row.id === undefined) return false;
+  return state.kind !== "reversed";
+}
+
+// reversalLabel is the short badge text for a row. Kept here, not in the component, so
+// the wording is covered by a test rather than by a reviewer noticing it.
+export function reversalLabel(state: RowReversalState): string | null {
+  switch (state.kind) {
+    case "reversed":
+      return "Reversed";
+    case "reversal":
+      return "Reversal";
+    case "plain":
+      return null;
+  }
+}
+
+// reversalDetail is the full sentence behind the badge (row title / caption). It names
+// the OTHER entry, because "Reversal" on its own is the unexplained-second-transfer
+// problem with a sticker on it.
+export function reversalDetail(state: RowReversalState): string | null {
+  switch (state.kind) {
+    case "reversed":
+      return state.byEntryId === undefined
+        ? "This entry has been reversed by a later correction on this statement."
+        : `This entry has been reversed by entry ${state.byEntryId}.`;
+    case "reversal":
+      return `This entry reverses entry ${state.ofEntryId}. It is the correction, not a new transfer.`;
+    case "plain":
+      return null;
+  }
+}
+
+// localReversalFrom records what a successful POST /entries/{id}/reverse told us, for
+// the session overlay above.
+export function localReversalFrom(
+  reversedEntryId: string,
+  reversalTransferId: string,
+): LocalReversal {
+  return { reversedEntryId, reversalTransferId };
+}

@@ -1,0 +1,123 @@
+{
+  "schema_version": "1.16.0",
+  "aigile_version": "16.21",
+  "canonical_pin": "unpinned",
+  "canonical_install": {
+    "mode": "develop",
+    "version": "16.21",
+    "source_commit": "83412dc98cb3cd3c6fca7bcf8de93ef4d5cc4afb",
+    "dirty": 0
+  },
+  "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+  "managed_block_state": "present",
+  "model_config": null,
+  "burst_sha": "911c6a70f8ca57b8cfd3bc6493b27f43a02f51d0",
+  "project_slug": "ledger-wallet",
+  "burst_label": "reversals",
+  "orchestrator": {
+    "name": "Amara Okeyo",
+    "email": "amara@ledger.test"
+  },
+  "status": "finalised",
+  "started_at": "2026-11-23T12:41:13Z",
+  "finalised_at": "2026-11-23T20:06:39Z",
+  "primary_usage": null,
+  "phases": [
+    {
+      "name": "Producing",
+      "entered_at": "2026-11-23T12:49:22Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.21",
+        "source_commit": "83412dc98cb3cd3c6fca7bcf8de93ef4d5cc4afb",
+        "dirty": 0
+      },
+      "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+      "managed_block_state": "present"
+    },
+    {
+      "name": "Probing",
+      "entered_at": "2026-11-23T19:40:06Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.21",
+        "source_commit": "950b3759db5ebee67009dc7332efad447cf1e8f1",
+        "dirty": 0
+      },
+      "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+      "managed_block_state": "present"
+    },
+    {
+      "name": "Piloting",
+      "entered_at": "2026-11-23T19:53:41Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.21",
+        "source_commit": "950b3759db5ebee67009dc7332efad447cf1e8f1",
+        "dirty": 0
+      },
+      "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+      "managed_block_state": "present"
+    },
+    {
+      "name": "Promoting",
+      "entered_at": "2026-11-23T19:54:28Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.21",
+        "source_commit": "950b3759db5ebee67009dc7332efad447cf1e8f1",
+        "dirty": 0
+      },
+      "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+      "managed_block_state": "present"
+    },
+    {
+      "name": "Idle",
+      "entered_at": "2026-11-23T20:54:45Z",
+      "canonical_install": {
+        "mode": "develop",
+        "version": "16.21",
+        "source_commit": "950b3759db5ebee67009dc7332efad447cf1e8f1",
+        "dirty": 0
+      },
+      "managed_block_sha256": "d0c54ba550fe1244ac49b44c81595c01339997460d9c7eb57ed3f6d64ad19fbd",
+      "managed_block_state": "present"
+    }
+  ],
+  "streams": [],
+  "stream_dependency_edges": [],
+  "builder_declarations": [],
+  "builder_terminal_invocations": [],
+  "governance_invocations": [],
+  "ship_fallback_authorizations": [],
+  "archive_locator": {
+    "path": "AIGILE_PLAN/closed/2026-11-23-reversals-911c6a7",
+    "recorded_at": "2026-11-23T20:04:37Z"
+  },
+  "archive_receipts": [
+    {
+      "archive_commit": "916ab3d92473c0cff52d0db5da2418dd5bc80afe",
+      "archive_path": "AIGILE_PLAN/closed/2026-11-23-reversals-911c6a7",
+      "recorded_at": "2026-11-23T20:04:37Z"
+    }
+  ],
+  "refreezes": [],
+  "reviews": {},
+  "contributors": [],
+  "diff_stat": null,
+  "token_economics": null,
+  "test_economics": null,
+  "skill_usage": {
+    "harvest": "unavailable",
+    "reason": "no main-thread transcripts found for this harness",
+    "skills": {}
+  },
+  "stream_reconciliation": {
+    "recorded_at": "2026-11-23T20:06:39Z",
+    "plan_source": "AIGILE_PLAN/closed/2026-11-23-reversals-911c6a7/round_1/plan.md",
+    "plan_unavailable_reason": null,
+    "plan_streams": [],
+    "manifest_streams": [],
+    "differences": []
+  }
+}

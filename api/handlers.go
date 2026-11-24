@@ -173,6 +173,101 @@ func (h *Handler) getStatement(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, r, http.StatusOK, toStatementResp(id, stmt))
 }
 
+// listCurrencies: GET /currencies → Ledger.ListCurrencies (migration 0002). Public
+// reference data: any authenticated principal may read it (auth is enforced by the
+// middleware on this non-exempt path), but there is no ownership - currencies are not
+// owned, so no principal-specific filtering and no D-D1 read rule applies here.
+func (h *Handler) listCurrencies(w http.ResponseWriter, r *http.Request) {
+	currencies, err := h.ledger.ListCurrencies(r.Context())
+	if err != nil {
+		writeCoreErr(w, r, err)
+		return
+	}
+	out := currenciesResp{Currencies: make([]currencyResp, 0, len(currencies))}
+	for _, c := range currencies {
+		out.Currencies = append(out.Currencies, toCurrencyResp(c))
+	}
+	writeJSON(w, r, http.StatusOK, out)
+}
+
+// getAvailable: GET /accounts/{id}/available → Ledger.AvailableBalance. Owner-
+// authorized exactly like getBalance (D-D1: non-owned → 404). Returns posted
+// balance minus active holds.
+func (h *Handler) getAvailable(w http.ResponseWriter, r *http.Request) {
+	principal := principalFrom(r.Context())
+	id := core.AccountID(r.PathValue("id"))
+
+	acc, err := h.ledger.GetAccount(r.Context(), id)
+	if err != nil {
+		writeCoreErr(w, r, err) // unknown account → 404 account_not_found
+		return
+	}
+	if !h.isAllowedReader(principal, acc.Owner) {
+		// D-D1: do not leak existence of an account the principal does not own.
+		writeErr(w, r, http.StatusNotFound, "account_not_found", "account not found")
+		return
+	}
+
+	amount, err := h.ledger.AvailableBalance(r.Context(), id)
+	if err != nil {
+		writeCoreErr(w, r, err)
+		return
+	}
+	writeJSON(w, r, http.StatusOK, balanceResp{
+		AccountID: string(id),
+		Amount:    int64(amount),
+		Currency:  string(acc.Currency),
+	})
+}
+
+// placeHold: POST /accounts/{id}/holds → Ledger.PlaceHold. Authorizer is the
+// authenticated principal; core checks ownership (R7, reused) and does NOT leak a
+// non-owned account differently here (core returns ErrUnauthorized/ErrAccountNotFound
+// through the map). The Idempotency-Key header is required, like transfers.
+func (h *Handler) placeHold(w http.ResponseWriter, r *http.Request) {
+	principal := principalFrom(r.Context())
+	id := core.AccountID(r.PathValue("id"))
+
+	key := r.Header.Get("Idempotency-Key")
+	if key == "" {
+		writeErr(w, r, http.StatusBadRequest, "idempotency_key_required",
+			"Idempotency-Key header is required")
+		return
+	}
+	var body holdReq
+	if err := decodeJSON(r, &body); err != nil {
+		writeErr(w, r, http.StatusBadRequest, "bad_request", err.Error())
+		return
+	}
+
+	hold, err := h.ledger.PlaceHold(r.Context(), core.HoldCmd{
+		Account:        id,
+		Authorizer:     principal,
+		Amount:         core.Amount(body.Amount),
+		Currency:       core.Currency(body.Currency),
+		IdempotencyKey: key,
+	})
+	if err != nil {
+		writeCoreErr(w, r, err)
+		return
+	}
+	writeJSON(w, r, http.StatusCreated, toHoldResp(hold))
+}
+
+// releaseHold: DELETE /accounts/{id}/holds/{holdId} → Ledger.ReleaseHold. The
+// authorizer must own the account (core enforces); an unknown/released hold → 404
+// hold_not_found. A successful release is 204 No Content.
+func (h *Handler) releaseHold(w http.ResponseWriter, r *http.Request) {
+	principal := principalFrom(r.Context())
+	holdID := core.HoldID(r.PathValue("holdId"))
+
+	if err := h.ledger.ReleaseHold(r.Context(), principal, holdID); err != nil {
+		writeCoreErr(w, r, err)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // --- decode helpers -------------------------------------------------------------
 
 // maxBodyBytes bounds a request body so a malformed/huge payload cannot exhaust

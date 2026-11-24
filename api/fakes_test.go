@@ -12,10 +12,12 @@ import (
 // api tests (so ownership/R7, insufficient funds/R3 and idempotency replay/R4 are
 // exercised through core.New, not re-implemented). Serial tests only; no locking.
 type memStore struct {
-	accounts  map[core.AccountID]core.Account
-	postings  []core.Posting
-	transfers map[string]core.Transfer // key = owner + "\x00" + idempotencyKey
-	seq       map[core.AccountID]int64
+	accounts   map[core.AccountID]core.Account
+	postings   []core.Posting
+	transfers  map[string]core.Transfer // key = owner + "\x00" + idempotencyKey
+	seq        map[core.AccountID]int64
+	currencies []core.CurrencyMeta
+	holds      map[core.HoldID]core.Hold
 }
 
 func newMemStore() *memStore {
@@ -23,7 +25,25 @@ func newMemStore() *memStore {
 		accounts:  map[core.AccountID]core.Account{},
 		transfers: map[string]core.Transfer{},
 		seq:       map[core.AccountID]int64{},
+		holds:     map[core.HoldID]core.Hold{},
 	}
+}
+
+func (m *memStore) ActiveHoldsTotal(ctx context.Context, id core.AccountID) (core.Amount, error) {
+	if _, err := m.GetAccount(ctx, id); err != nil {
+		return 0, err
+	}
+	return m.activeHoldsTotal(id), nil
+}
+
+func (m *memStore) activeHoldsTotal(id core.AccountID) core.Amount {
+	var sum core.Amount
+	for _, h := range m.holds {
+		if h.Account == id && h.Active {
+			sum += h.Amount
+		}
+	}
+	return sum
 }
 
 func (m *memStore) InTx(ctx context.Context, fn func(tx core.Tx) error) error {
@@ -86,6 +106,13 @@ func (m *memStore) Statement(ctx context.Context, id core.AccountID, page core.P
 	return out, nil
 }
 
+func (m *memStore) ListCurrencies(ctx context.Context) ([]core.CurrencyMeta, error) {
+	out := make([]core.CurrencyMeta, len(m.currencies))
+	copy(out, m.currencies)
+	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
+	return out, nil
+}
+
 func (m *memStore) balanceOf(id core.AccountID) core.Amount {
 	var sum core.Amount
 	for _, p := range m.postings {
@@ -117,6 +144,31 @@ func (t *memTx) FindTransferByKey(owner core.PrincipalID, key string) (core.Tran
 	return tr, ok, nil
 }
 
+func (t *memTx) FindTransferByID(id string) (core.Transfer, bool, error) {
+	for _, tr := range t.m.transfers {
+		if tr.ID == id {
+			var ps []core.Posting
+			for _, p := range t.m.postings {
+				if p.TransferID == id {
+					ps = append(ps, p)
+				}
+			}
+			tr.Postings = ps
+			return tr, true, nil
+		}
+	}
+	return core.Transfer{}, false, nil
+}
+
+func (t *memTx) FindTransferByPostingID(postingID string) (core.Transfer, bool, error) {
+	for _, p := range t.m.postings {
+		if p.ID == postingID {
+			return t.FindTransferByID(p.TransferID)
+		}
+	}
+	return core.Transfer{}, false, nil
+}
+
 func (t *memTx) InsertTransfer(tr core.Transfer) error {
 	// Assign seq as MAX(seq)+1 per account (D-B1), mirroring the SQLite adapter.
 	for i := range tr.Postings {
@@ -129,21 +181,69 @@ func (t *memTx) InsertTransfer(tr core.Transfer) error {
 	return nil
 }
 
+func (t *memTx) ActiveHoldsTotal(id core.AccountID) (core.Amount, error) {
+	return t.m.activeHoldsTotal(id), nil
+}
+
+func (t *memTx) FindHoldByKey(owner core.PrincipalID, key string) (core.Hold, bool, error) {
+	for _, h := range t.m.holds {
+		if h.Owner == owner && h.IdempotencyKey == key {
+			return h, true, nil
+		}
+	}
+	return core.Hold{}, false, nil
+}
+
+func (t *memTx) InsertHold(h core.Hold) error {
+	t.m.holds[h.ID] = h
+	return nil
+}
+
+func (t *memTx) GetHold(id core.HoldID) (core.Hold, bool, error) {
+	h, ok := t.m.holds[id]
+	return h, ok, nil
+}
+
+func (t *memTx) ReleaseHold(id core.HoldID) error {
+	if h, ok := t.m.holds[id]; ok {
+		h.Active = false
+		t.m.holds[id] = h
+	}
+	return nil
+}
+
 // fakeLedger is a programmable core.Ledger for precise error-mapping and D-D1
 // tests. Each method returns the configured value/error.
 type fakeLedger struct {
-	account     core.Account
-	accountErr  error
-	accounts    []core.Account
-	accountsErr error
-	balance     core.Amount
-	balanceErr  error
-	result      core.TransferResult
-	transferErr error
-	statement   core.StatementPage
-	staterr     error
-	created     core.Account
-	createErr   error
+	account       core.Account
+	accountErr    error
+	accounts      []core.Account
+	accountsErr   error
+	balance       core.Amount
+	balanceErr    error
+	result        core.TransferResult
+	transferErr   error
+	statement     core.StatementPage
+	staterr       error
+	created       core.Account
+	createErr     error
+	currencies    []core.CurrencyMeta
+	currenciesErr error
+	hold          core.Hold
+	holdErr       error
+	releaseErr    error
+	available     core.Amount
+	availErr      error
+	// Reversal: the result/error to return, plus what the handler actually
+	// passed through the interface, so a test can assert the translation.
+	// Amara's signature is positional (authorizer, entryID, key), matching
+	// ReleaseHold, so the capture fields are positional too.
+	reverseResult     core.TransferResult
+	reverseErr        error
+	reverseAuthorizer core.PrincipalID
+	reverseEntryID    string
+	reverseKey        string
+	reverseCalled     bool
 }
 
 func (f *fakeLedger) CreateAccount(ctx context.Context, cmd core.CreateAccountCmd) (core.Account, error) {
@@ -176,4 +276,28 @@ func (f *fakeLedger) Transfer(ctx context.Context, cmd core.TransferCmd) (core.T
 
 func (f *fakeLedger) Statement(ctx context.Context, id core.AccountID, page core.Page) (core.StatementPage, error) {
 	return f.statement, f.staterr
+}
+
+func (f *fakeLedger) ListCurrencies(ctx context.Context) ([]core.CurrencyMeta, error) {
+	return f.currencies, f.currenciesErr
+}
+
+func (f *fakeLedger) PlaceHold(ctx context.Context, cmd core.HoldCmd) (core.Hold, error) {
+	return f.hold, f.holdErr
+}
+
+func (f *fakeLedger) ReleaseHold(ctx context.Context, authorizer core.PrincipalID, id core.HoldID) error {
+	return f.releaseErr
+}
+
+func (f *fakeLedger) AvailableBalance(ctx context.Context, id core.AccountID) (core.Amount, error) {
+	return f.available, f.availErr
+}
+
+func (f *fakeLedger) Reverse(ctx context.Context, authorizer core.PrincipalID, entryID string, idempotencyKey string) (core.TransferResult, error) {
+	f.reverseAuthorizer = authorizer
+	f.reverseEntryID = entryID
+	f.reverseKey = idempotencyKey
+	f.reverseCalled = true
+	return f.reverseResult, f.reverseErr
 }

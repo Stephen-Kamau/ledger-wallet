@@ -34,4 +34,15 @@ var (
 	ErrIdempotencyConflict = &LedgerError{Code: "idempotency_conflict", Message: "idempotency key reused with different parameters"}
 	// ErrInvalidAccount - a create command missing an owner or currency (R6) -> 422.
 	ErrInvalidAccount = &LedgerError{Code: "invalid_account", Message: "account requires an owner and a currency"}
+	// ErrHoldNotFound - a release names an unknown or already-released hold -> 404.
+	ErrHoldNotFound = &LedgerError{Code: "hold_not_found", Message: "hold not found or already released"}
+	// ErrEntryNotFound - a reversal names an unknown entry -> 404. The code is
+	// `entry_not_found`: "entry" is the domain word for the thing being reversed
+	// (R5, and the reverse command names an entryID), and it is the code the web
+	// layer already canonicalises. `transfer_not_found` would fall through its
+	// alias map to the generic branch, which is R13 breaking at the seam.
+	ErrEntryNotFound = &LedgerError{Code: "entry_not_found", Message: "entry not found"}
+	// ErrAlreadyReversed - the entry already carries a compensating entry (R5) -> 409.
+	// A second reversal is refused rather than posted: one entry, at most one reversal.
+	ErrAlreadyReversed = &LedgerError{Code: "already_reversed", Message: "entry has already been reversed"}
 )

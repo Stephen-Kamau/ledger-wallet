@@ -1,2 +1,7 @@
 # Written by ag-init detection - docs/standing/test-suite-registry.md
-repo-go|go.mod,go.sum|.|.
+# The suite NAME selects the runner and must come from the admitted vocabulary
+# (repo-pytest, repo-bun, repo-playwright, repo-go, ...); the 5th field overrides
+# that runner's command. The original single row triggered only on go.mod,go.sum,
+# so no real delta ever planned a suite and ag-test-plan refused outright.
+repo-go|core/,internal/,api/,cmd/,tests/,migrations/,go.mod,go.sum|.|.
+repo-bun|web/|web/src|web|bun run test

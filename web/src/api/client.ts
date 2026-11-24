@@ -11,6 +11,7 @@ import {
   type BalanceBody,
   type CreateAccountReq,
   type Page,
+  type ReversalBody,
   type StatementBody,
   type TransferBody,
   type TransferReq,
@@ -22,11 +23,13 @@ export interface ApiClient {
   getStatement(id: string, page: Page): Promise<StatementBody>; // GET /accounts/{id}/statement (R21)
   createTransfer(req: TransferReq, idemKey: string): Promise<TransferBody>; // POST /transfers (R22)
   createAccount(req: CreateAccountReq): Promise<Account>; // POST /accounts
+  reverseEntry(entryId: string, idemKey: string): Promise<ReversalBody>; // POST /entries/{id}/reverse
 }
 
-// newIdempotencyKey generates one key per transfer INTENT (api/handlers.go requires
-// the Idempotency-Key header; R4). crypto.randomUUID is available in every browser the
-// toy targets and under Node 22 / jsdom.
+// newIdempotencyKey generates one key per WRITE intent — one transfer, or one reversal
+// (api/handlers.go requires the Idempotency-Key header; R4). Deliberately shared by
+// both: a reversal IS a transfer, and a double-clicked Reverse must not post twice.
+// crypto.randomUUID is available in every browser the toy targets and under Node 22.
 export function newIdempotencyKey(): string {
   return crypto.randomUUID();
 }
@@ -90,5 +93,14 @@ export function makeClient(baseUrl: string, getToken: () => string | null): ApiC
     createTransfer: (req, idemKey) =>
       call<TransferBody>("POST", "/transfers", { body: req, idemKey }),
     createAccount: (req) => call<Account>("POST", "/accounts", { body: req }),
+    // POST /entries/{id}/reverse — STUB CONTRACT, see ReversalBody in ./types. The
+    // entry id goes in the path and is encoded like every other path segment here; the
+    // reversal carries no body because the server derives every leg from the entry it
+    // is reversing. That is the point of an append-only correction: the client does not
+    // get to choose the amount.
+    reverseEntry: (entryId, idemKey) =>
+      call<ReversalBody>("POST", `/entries/${encodeURIComponent(entryId)}/reverse`, {
+        idemKey,
+      }),
   };
 }

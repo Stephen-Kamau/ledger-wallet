@@ -67,6 +67,20 @@ BEFORE DELETE ON postings
 BEGIN
   SELECT RAISE(ABORT, 'postings are append-only (R5): DELETE forbidden');
 END;
+
+CREATE TABLE IF NOT EXISTS holds (
+  id              TEXT    PRIMARY KEY,
+  account_id      TEXT    NOT NULL REFERENCES accounts(id),
+  owner           TEXT    NOT NULL,
+  idempotency_key TEXT    NOT NULL,
+  amount          INTEGER NOT NULL CHECK (amount > 0),
+  currency        TEXT    NOT NULL,
+  active          INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0,1)),
+  created_at      TEXT    NOT NULL,
+  released_at     TEXT,
+  UNIQUE (owner, idempotency_key)
+);
+CREATE INDEX IF NOT EXISTS idx_holds_account_active ON holds(account_id, active);
 `
 
 // Store adapts a *sql.DB to the core.Store port.
@@ -94,10 +108,16 @@ const dsnPragmas = "?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragm
 // concurrent WAL readers without letting the pool churn fresh connections.
 const maxOpenConns = 16
 
-// Open opens (or creates) the SQLite database at path with the §5 pragmas, applies
-// the embedded schema, and returns a ready Store. The connection pool is capped so
-// WAL's single-writer model is respected and the busy_timeout governs contention.
-func Open(ctx context.Context, path string) (*Store, error) {
+// OpenRaw opens (or creates) the SQLite database at path with the §5 pragmas and the
+// capped connection pool, but applies NO schema. The SERVER path uses this and then
+// applies the numbered migrations as its SINGLE schema source (cmd/ledgerd.New), so
+// the running server never boots from the adapter's embeddedSchema. embeddedSchema
+// (applied by Open) exists only to let the adapter's own tests stand alone, and must
+// never again be the thing the live server depends on: when it drifted from the
+// migrations (the currencies table lived only in migrations/0002), the server booted
+// without that table and GET /currencies 500'd while every migration-applied unit test
+// stayed green. Migrations as the server's one source is what forecloses that drift.
+func OpenRaw(ctx context.Context, path string) (*Store, error) {
 	db, err := sql.Open("sqlite", path+dsnPragmas)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite open: %w", err)
@@ -111,11 +131,22 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	db.SetMaxOpenConns(maxOpenConns)
 	db.SetMaxIdleConns(maxOpenConns)
 	db.SetConnMaxLifetime(0) // never expire a warm connection
-	if err := EnsureSchema(ctx, db); err != nil {
-		_ = db.Close()
+	return &Store{db: db}, nil
+}
+
+// Open opens (or creates) the SQLite database at path with the §5 pragmas AND applies
+// the embedded standalone schema, returning a ready Store. Used by the adapter's own
+// tests so they need no migrations dependency; the server uses OpenRaw + migrations.
+func Open(ctx context.Context, path string) (*Store, error) {
+	store, err := OpenRaw(ctx, path)
+	if err != nil {
 		return nil, err
 	}
-	return &Store{db: db}, nil
+	if err := EnsureSchema(ctx, store.db); err != nil {
+		_ = store.db.Close()
+		return nil, err
+	}
+	return store, nil
 }
 
 // EnsureSchema applies the embedded schema idempotently. Kofi's migrations layer

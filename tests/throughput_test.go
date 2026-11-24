@@ -23,6 +23,16 @@ const baselineFile = "throughput_baseline.txt"
 // serialized-writer ceiling (§5), which is the honest thing to report. Counts are modest
 // so the whole test runs in a few seconds.
 func TestR19_ThroughputBaseline(t *testing.T) {
+	// R19 is the whole cost of this package: measured at 379.9s of a 600s default
+	// `go test` budget under -race, while every other test in tests/ together takes
+	// ~28s. That is 1.6x headroom on a test whose wall time is load-dependent -- an
+	// observed 370s -> 591s swing between two runs on the same machine timed the
+	// package out. A recorded baseline is not something to run on every edit, so
+	// `-short` skips it; the full run still measures and rewrites the artifact.
+	if testing.Short() {
+		t.Skip("R19 records a throughput baseline (~6-10min under -race); " +
+			"run without -short to measure and rewrite " + baselineFile)
+	}
 	l, db := newLedger(t)
 	ctx := context.Background()
 	sys := newSystemAccount(t, l)

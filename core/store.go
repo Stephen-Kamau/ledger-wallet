@@ -15,6 +15,9 @@ type Store interface {
 	AccountsByOwner(ctx context.Context, owner PrincipalID) ([]Account, error)
 	Balance(ctx context.Context, id AccountID) (Amount, error)
 	Statement(ctx context.Context, id AccountID, page Page) (StatementPage, error)
+	ListCurrencies(ctx context.Context) ([]CurrencyMeta, error)
+	// ActiveHoldsTotal sums the amounts of an account's active holds (read-only).
+	ActiveHoldsTotal(ctx context.Context, id AccountID) (Amount, error)
 }
 
 // Tx is the transactional surface. It exposes INSERTs and reads but DELIBERATELY
@@ -29,4 +32,23 @@ type Tx interface {
 	InsertAccount(a Account) error
 	FindTransferByKey(owner PrincipalID, key string) (Transfer, bool, error) // R4 lookup
 	InsertTransfer(t Transfer) error                                         // writes transfer + postings atomically
+
+	// FindTransferByID loads a transfer and its postings by id, under the write
+	// lock. Reversal needs it twice: to read the entry being compensated, and to
+	// detect an existing compensating entry by its derived id (see core/reversal.go).
+	// Still no update or delete - append-only (R5) is unchanged.
+	FindTransferByID(id string) (Transfer, bool, error)
+
+	// FindTransferByPostingID loads the transfer a POSTING belongs to. A statement
+	// row is a posting, so this is how a reversal driven from the UI resolves the
+	// entry it is correcting (see core/reversal.go). Read-only, like its sibling.
+	FindTransferByPostingID(postingID string) (Transfer, bool, error)
+
+	// Hold surface. ActiveHoldsTotal is the live reserved sum under the write lock;
+	// FindHoldByKey is the idempotency lookup; GetHold loads a hold for release.
+	ActiveHoldsTotal(id AccountID) (Amount, error)
+	FindHoldByKey(owner PrincipalID, key string) (Hold, bool, error)
+	InsertHold(h Hold) error
+	GetHold(id HoldID) (Hold, bool, error)
+	ReleaseHold(id HoldID) error // marks the hold inactive (idempotent on an active hold)
 }
