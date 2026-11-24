@@ -42,7 +42,7 @@ The "where are we right now" index. Thin by design. Plan content lives in `AIGIL
 <!-- committed under .aigile/manifests/ and remains the record of what was claimed.   -->
 <!-- kofi hit the same thing: a claim's base SHA does not survive a rebase.           -->
 **Plan reference:** None
-**Next action:** Burst complete - reversals closed across all four streams; dev->main promotion outstanding and is the Orchestrator's call
+**Next action:** Idle - run /ag-plan to start a burst. Burst reversals is SHIPPED: dev promoted to main at 1a48c1a (PR #5), all four streams archived. No promotion outstanding.
 **Last updated:** [YYYY-MM-DD]
 
 <!-- Next action is the forward pointer for resume-on-/clear. Every phase  -->
