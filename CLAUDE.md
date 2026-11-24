@@ -193,6 +193,18 @@ This does NOT license skipping a gate. Rule precedence tier 1 is unaffected.
 
 Rationale: [bursts carry work](docs/standing/aigile-rules-rationale.md#bursts-carry-work).
 
+### Future bursts outrank legacy ones
+
+Design for future bursts. A choice that is tolerable for past bursts and advantageous for future ones is taken, and legacy data is not backfilled or exactly represented at the cost of the future design.
+
+Rationale: [future over legacy](docs/standing/aigile-rules-rationale.md#future-over-legacy).
+
+### Build only what is missing
+
+Do not build what others have already built and tested when it largely meets the need: adopt the maintained package, tool or service, and build only what is required and not available elsewhere. Adding a runtime dependency still takes its challenged-decision entry.
+
+Rationale: [build only what is missing](docs/standing/aigile-rules-rationale.md#build-only-what-is-missing).
+
 ### Delegation
 
 Delegate by default. Never assess your own work yourself - that one is not a judgement
@@ -455,6 +467,15 @@ Weekly token limits apply. Keep tool output small:
 - If a command result was larger than ~50 lines and only part was needed, note
   that so it is not repeated.
 
+**A pipe reports the LAST command's exit code, so never pipe anything whose exit code
+you intend to read.** `cmd | tail -30` reports `tail`'s status, which is 0 almost always:
+a push reported `EXIT=0` this way while it had actually failed with "Connection to
+github.com closed by remote host", and the failure was caught only by a separate
+`git ls-remote`. Redirect to a file and read the file - `cmd > out.log 2>&1; echo "EXIT=$?"`
+- or capture the status explicitly. The same redirect fixes the other half of the trap:
+piping a long-running command through `tail` DESTROYS the output you did not keep, which
+cost a review critique and a mutation report in one burst, each of which had to be re-run.
+
 ### Demo-readiness goals enumerate the journeys
 
 **For a demo-readiness goal, enumerate the journeys.** When a burst's goal is
@@ -623,10 +644,13 @@ model, `CD-026`).
 
 Local override: `AIGILE_ALLOW_MAIN=1` (command-scoped, preferred) or an untracked,
 burst-scoped `.aigile-allow-main` file (line 1 reason, line 2 burst-base SHA). **When
-`multi_user_enabled` is ON the file needs a third line naming the operator, which must be
-the current burst owner** - a 2-line file is refused under multi-user (`AIGILE_ALLOW_MAIN=1`
-in your own shell stays owner-scoped and needs no line 3). Server override: a PR with a
-`hotfix` label, or an admin push if `enforce_admins=false`. Full procedure:
+`multi_user_enabled` is ON the file needs line 3 naming the operator - who must be the
+current burst owner - and line 4 carrying that operator's roster signature over the
+reason, the burst and the login.** Write it with `ag-allow-main write --reason ...`; a
+hand-written file cannot carry line 4. A 2- or 3-line file is refused under multi-user,
+and so is a signature that does not verify under the signer's current roster key.
+`AIGILE_ALLOW_MAIN=1` in your own shell stays owner-scoped and needs neither line.
+Server override: a PR with a `hotfix` label, or an admin push if `enforce_admins=false`. Full procedure:
 `docs/standing/BRANCH-PROTECTION.md`.
 
 ### Size advisories are rewrite triggers, not limits
