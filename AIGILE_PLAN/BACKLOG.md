@@ -39,6 +39,60 @@
   kind: work-item
   disposition: considering
 
+- [2026-11-24] **`AGV-018`** The Reviewer seat resolves READY with a route_token but its
+  dispatch FAILS: ag-resolve-role returns model gpt-6.1-sol and the local Codex CLI is
+  authenticated to a ChatGPT account that refuses it with HTTP 400 model_not_found. A
+  seat that resolves green and dies at dispatch is why the reversals burst recorded no
+  machine-readable Reviewer verdict (reviews: {}). Resolution is for the Orchestrator:
+  either re-route the seat to a model this account serves, or change the account the
+  Codex CLI authenticates as.
+  <!--fields-->
+  state: open
+  closes-when: ag-codex-dispatch completes a turn without a model_not_found error and ag-review records a verdict into the burst manifest reviews object.
+  preconditions: none
+  bundle: ledger-scope
+  builder-family: n/a
+  builder-model: unrecorded
+  evidence: ag-codex-dispatch diagnostic frame 2026-11-24, burst reversals: status 400, code model_not_found. ag-review --dry-run resolves role=Reviewer reviewer=codex family=openai and exits 0, so the dry run cannot see the defect.
+  defeat: dependency - re-routing a seat to a different model is a governance routing refreeze, the Orchestrator-owned act amara explicitly declined to take unilaterally in this burst (D-A1). A builder cannot resolve it.
+  kind: work-item
+  disposition: parked
+
+- [2026-11-24] **`AGV-019`** The Ship-review seat cannot run: ag-resolve-role returns it
+  READY on opencode-go/deepseek-v4.1-flash carrying requires_consent
+  opencode-go-china-hosting, and no such consent is recorded anywhere in .aigile/.
+  CLAUDE.md makes a Ship-review-seat verdict MANDATORY on every dev to main merge; the
+  reversals promotion (PR 5, merged 1a48c1a) therefore shipped without one.
+  <!--fields-->
+  state: open
+  closes-when: either the consent is recorded and ag-ship-review --pr N returns a verdict, or the Ship-review seat is re-routed to a transport needing no residency consent.
+  preconditions: none
+  bundle: ledger-scope
+  builder-family: n/a
+  builder-model: unrecorded
+  evidence: ag-resolve-role --json ship-review on 2026-11-24 returns state READY, requires_consent opencode-go-china-hosting. grep over .aigile/ for that token returns nothing. opencode auth list shows OpenCode Go and Console keys stored, so the transport is authenticated and the consent is the only gap.
+  defeat: dependency - the consent is a data-residency decision about sending this repository diff to China-hosted inference. That is the Orchestrator's to grant or refuse, not a builder's, and no amount of in-burst work substitutes for it.
+  kind: work-item
+  disposition: parked
+
+- [2026-11-24] **`AGV-020`** main has NO server-side branch protection, so the
+  two-contract override model has only one contract in force on this repository. The
+  GitHub API returns 403 Upgrade to GitHub Pro or make this repository public. Nothing
+  server-side requires a PR, a review, or refuses a force push or deletion on main: the
+  local pre-commit and pre-push hooks are the entire guard, and they protect only clones
+  that installed them.
+  <!--fields-->
+  state: open
+  closes-when: GET repos/Stephen-Kamau/ledger-wallet/branches/main/protection returns 200 with required_pull_request_reviews set, or the Orchestrator records an explicit accepted-risk decision in AIGILE_DECISIONS.md that local hooks are the only contract.
+  preconditions: none
+  bundle: ledger-scope
+  builder-family: n/a
+  builder-model: unrecorded
+  evidence: gh api repos/Stephen-Kamau/ledger-wallet/branches/main/protection on 2026-11-24 returns HTTP 403 Upgrade to GitHub Pro or make this repository public to enable this feature. CLAUDE.md Branch hygiene names server-side protection as one of five enforcement layers; on this repo that layer does not exist.
+  defeat: dependency - enabling protection needs either a paid GitHub plan or making a private financial-services toy repository public. Both are account and disclosure decisions owned outside this repository, and a builder must not take either.
+  kind: work-item
+  disposition: parked
+
 ## Bundles
 
 Declare a bundle with `ag-backlog rebundle --declare <slug> --name <name> --purpose <purpose>`;
