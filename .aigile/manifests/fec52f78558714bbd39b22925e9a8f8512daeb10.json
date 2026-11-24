@@ -15,9 +15,9 @@
     "name": "Dakari Mwangi",
     "email": "dakari@ledger.test"
   },
-  "status": "in-flight",
+  "status": "finalised",
   "started_at": "2026-11-11T18:44:36Z",
-  "finalised_at": null,
+  "finalised_at": "2026-11-24T03:39:07Z",
   "primary_usage": null,
   "phases": [
     {
@@ -44,5 +44,13 @@
   "contributors": [],
   "diff_stat": null,
   "token_economics": null,
-  "test_economics": null
+  "test_economics": null,
+  "stream_reconciliation": {
+    "recorded_at": "2026-11-24T03:39:07Z",
+    "plan_source": null,
+    "plan_unavailable_reason": "no plan record under AIGILE_PLAN/current/ or this burst's closed archive",
+    "plan_streams": null,
+    "manifest_streams": [],
+    "differences": []
+  }
 }
